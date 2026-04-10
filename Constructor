@@ -1,0 +1,3829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система оптимизации логистики цеха</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Все существующие стили остаются без изменений */
+        body {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://images.unsplash.com/photo-1581094794329-c8112a89af12?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            border-bottom: 2px solid #00b4d8;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #00b4d8;
+        }
+        
+        .obstacle-item, .point-item, .robot-type-item, .base-point-item, .tunnel-item, .warehouse-item {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #00b4d8;
+        }
+        
+        .base-point-item {
+            border-left: 4px solid #ff6b6b;
+        }
+        
+        .tunnel-item {
+            border-left: 4px solid #9966ff;
+        }
+        
+        .warehouse-item {
+            border-left: 4px solid #66aaff;
+        }
+        
+        .coord-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 5px;
+        }
+        
+        .coord-input:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #00b4d8;
+            box-shadow: 0 0 0 0.2rem rgba(0, 180, 216, 0.25);
+            color: white;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #00b4d8, #0077b6);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .btn-outline-success {
+            border-radius: 20px;
+            border-color: #00b4d8;
+            color: #00b4d8;
+        }
+        
+        .btn-outline-success:hover {
+            background-color: #00b4d8;
+            border-color: #00b4d8;
+        }
+        
+        .delete-btn {
+            background: linear-gradient(45deg, #e63946, #d00000);
+            border: none;
+            border-radius: 15px;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+        }
+        
+        .factory-map-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            position: relative;
+        }
+        
+        #factoryCanvas {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #00b4d8;
+            cursor: crosshair;
+            touch-action: none;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            aspect-ratio: 8/5;
+        }
+        
+        .map-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+        }
+        
+        .base-color { background-color: #ff6b6b; }
+        .loading-color { background-color: #ff4444; }
+        .unloading-color { background-color: #4444ff; }
+        .obstacle-color { background-color: #ffcc00; }
+        .obstacle-line-color { background-color: #ff9900; }
+        .charging-color { background-color: #44ff44; }
+        .warehouse-color { background-color: #66aaff; }
+        .tunnel-color { background-color: #9966ff; }
+        
+        .coordinates-display {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(10px, 10px);
+        }
+        
+        .canvas-wrapper {
+            position: relative;
+            display: inline-block;
+            overflow: hidden;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .obstacle-controls, .tunnel-controls, .warehouse-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .details-textarea {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        
+        .details-textarea:focus {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #00b4d8;
+            box-shadow: 0 0 0 0.2rem rgba(0, 180, 216, 0.25);
+            color: white;
+        }
+        
+        .warning-message {
+            color: #ffcc00;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+        
+        .zoom-btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid #00b4d8;
+            border-radius: 5px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        .zoom-btn:hover {
+            background: rgba(0, 180, 216, 0.7);
+        }
+        
+        .zoom-level {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid #00b4d8;
+            border-radius: 5px;
+            padding: 5px 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .canvas-wrapper {
+                width: 100%;
+                overflow: auto;
+            }
+            
+            #factoryCanvas {
+                width: 100%;
+                max-width: 100%;
+                height: 60vh;
+                aspect-ratio: unset;
+            }
+            
+            .obstacle-controls, .tunnel-controls, .warehouse-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .d-flex.justify-content-between {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .d-flex.justify-content-between > div {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 5px;
+            }
+            
+            .map-legend {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .zoom-controls {
+                top: 5px;
+                right: 5px;
+            }
+            
+            .zoom-btn, .zoom-level {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+            
+            .zoom-level {
+                padding: 2px 5px;
+                font-size: 12px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #factoryCanvas {
+                height: 50vh;
+            }
+            
+            .glass-card {
+                padding: 15px;
+            }
+            
+            .btn-sm {
+                padding: 5px 10px;
+                font-size: 0.8rem;
+            }
+        }
+
+        .robot-count-input {
+            max-width: 120px;
+        }
+        
+        .base-point-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 20px;
+        }
+
+        .tunnel-btn {
+            background: linear-gradient(45deg, #9966ff, #aa88ff);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 20px;
+        }
+
+        .warehouse-btn {
+            background: linear-gradient(45deg, #66aaff, #88ccff);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 20px;
+        }
+        
+        .requirement-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-left: 3px solid #4444ff;
+        }
+        
+        /* Исправление для выпадающего списка роботов */
+        .robot-type {
+            background-color: rgba(0, 0, 0, 0.7) !important;
+            color: white !important;
+        }
+        
+        .robot-type option {
+            background-color: #333;
+            color: white;
+        }
+        
+        /* Кнопки расчета маршрутов */
+        .calculate-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 576px) {
+            .calculate-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .calculate-buttons .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold">🏭 Система оптимизации логистики цеха</h1>
+            <p class="lead">Расчет оптимальных маршрутов для автономных роботов-перевозчиков</p>
+        </div>
+
+        <form id="factoryForm">
+            <!-- Секция габаритов помещения -->
+            <div class="glass-card">
+                <h3 class="section-title">📏 Габариты помещения</h3>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Длина (м)</label>
+                        <input type="number" class="form-control coord-input" id="length" min="1" value="50" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Ширина (м)</label>
+                        <input type="number" class="form-control coord-input" id="width" min="1" value="30" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Высота (м)</label>
+                        <input type="number" class="form-control coord-input" id="height" min="1" value="10" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секция склада -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">🏬 Область склада</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="setWarehouseMode()">+ Определить склад</button>
+                </div>
+                <p class="text-muted">Определите область склада. Тоннели будут начинаться от склада и вести к точкам погрузки.</p>
+                
+                <div id="warehouseContainer">
+                    <!-- Координаты склада будут добавляться здесь динамически -->
+                    <div class="warehouse-item" id="warehouseCoordsContainer" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5>Координаты склада</h5>
+                            <button type="button" class="btn delete-btn" onclick="removeWarehouse()">🗑️ Удалить склад</button>
+                        </div>
+                        <div id="warehouseCoords">
+                            <!-- Координаты будут добавляться здесь -->
+                        </div>
+                    </div>
+                    <div id="warehouseStatus">
+                        <span class="text-warning">Склад не определен</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секция начальной точки загрузки -->
+            <div class="glass-card">
+                <h3 class="section-title">🏠 Начальная точка загрузки (Базовая)</h3>
+                <p class="text-muted">Укажите координаты базовой точки, откуда роботы начинают движение. Тоннели также могут начинаться от этой точки.</p>
+                
+                <div id="basePointContainer">
+                    <div class="base-point-item">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-6">
+                                <label class="form-label">Координаты базовой точки</label>
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <input type="number" class="form-control coord-input base-coord-x" placeholder="X" step="0.1" value="5" required>
+                                    </div>
+                                    <div class="col">
+                                        <input type="number" class="form-control coord-input base-coord-y" placeholder="Y" step="0.1" value="5" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn base-point-btn mt-3" onclick="setBasePointFromMap()">
+                                    📍 Установить с карты
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Интерактивная карта цеха -->
+            <div class="glass-card">
+                <h3 class="section-title">🗺️ Интерактивная карта цеха</h3>
+                <p class="text-muted">Нажмите на карту, чтобы добавить точки. Для препятствий и склада кликните несколько раз, чтобы создать многоугольник, затем нажмите "Завершить".</p>
+                
+                <div class="factory-map-container">
+                    <div class="canvas-wrapper">
+                        <canvas id="factoryCanvas"></canvas>
+                        <div class="zoom-controls">
+                            <div class="zoom-btn" id="zoomInBtn">+</div>
+                            <div class="zoom-level" id="zoomLevel">100%</div>
+                            <div class="zoom-btn" id="zoomOutBtn">-</div>
+                        </div>
+                    </div>
+                    <div id="coordinatesDisplay" class="coordinates-display" style="display: none;"></div>
+                    
+                    <div class="d-flex justify-content-between mt-3">
+                        <div>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="panModeBtn">👆 Передвигать</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addWarehouseBtn">🏬 Склад</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addBasePointBtn">🏠 Приём</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addLoadingPointBtn">➕ Погрузка</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addUnloadingPointBtn">➕ Выгрузка</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addChargingPointBtn">🔋 Зарядка</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addTunnelBtn">🚇 Тоннель</button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="addObstacleBtn">🚧 Препятствие</button>
+                        </div>
+                        <button type="button" class="btn btn-outline-warning btn-sm" id="clearAllBtn">🗑️ Очистить</button>
+                    </div>
+                    
+                    <div class="obstacle-controls" id="obstacleControls" style="display: none;">
+                        <button type="button" class="btn btn-success btn-sm" id="finishObstacleBtn">✅ Завершить препятствие</button>
+                        <button type="button" class="btn btn-info btn-sm" id="finishObstacleLineBtn">📏 Завершить перегородку</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="cancelObstacleBtn">❌ Отменить</button>
+                    </div>
+                    
+                    <div class="tunnel-controls" id="tunnelControls" style="display: none;">
+                        <button type="button" class="btn btn-success btn-sm" id="finishTunnelBtn">✅ Завершить тоннель</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="cancelTunnelBtn">❌ Отменить</button>
+                    </div>
+                    
+                    <div class="warehouse-controls" id="warehouseControls" style="display: none;">
+                        <button type="button" class="btn btn-success btn-sm" id="finishWarehouseBtn">✅ Завершить склад</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="cancelWarehouseBtn">❌ Отменить</button>
+                    </div>
+                    
+                    <div class="map-legend mt-3">
+                        <div class="legend-item">
+                            <div class="legend-color base-color"></div>
+                            <span>Приёмная точка</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color loading-color"></div>
+                            <span>Точки погрузки</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color unloading-color"></div>
+                            <span>Точки выгрузки</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color charging-color"></div>
+                            <span>Точки зарядки</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color warehouse-color"></div>
+                            <span>Склад</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color tunnel-color"></div>
+                            <span>Тоннели</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color obstacle-color"></div>
+                            <span>Препятствия</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color obstacle-line-color"></div>
+                            <span>Перегородки</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Секция тоннелей -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">🚇 Тоннели доставки</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="setTunnelMode()">+ Добавить тоннель</button>
+                </div>
+                <p class="text-muted">Тоннели должны начинаться от склада ИЛИ от базовой точки и заканчиваться на точках погрузки</p>
+                <div id="tunnelsContainer">
+                    <!-- Тоннели будут добавляться здесь динамически -->
+                </div>
+            </div>
+
+            <!-- Секция препятствий -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">🚧 Препятствия</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="addObstacle()">+ Добавить препятствие</button>
+                </div>
+                <div id="obstaclesContainer">
+                    <!-- Препятствия будут добавляться здесь динамически -->
+                </div>
+            </div>
+
+            <!-- Секция точек погрузки -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">📤 Точки погрузки</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="addLoadingPoint()">+ Добавить точку</button>
+                </div>
+                <div id="loadingPointsContainer">
+                    <!-- Точки погрузки будут добавляться здесь динамически -->
+                </div>
+            </div>
+
+            <!-- Секция точек выгрузки -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">📥 Точки выгрузки</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="addUnloadingPoint()">+ Добавить точку</button>
+                </div>
+                <div id="unloadingPointsContainer">
+                    <!-- Точки выгрузки будут добавляться здесь динамически -->
+                </div>
+            </div>
+
+            <!-- Секция точек зарядки -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">🔋 Точки зарядки</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="addChargingPoint()">+ Добавить точку</button>
+                </div>
+                <div id="chargingPointsContainer">
+                    <!-- Точки зарядки будут добавляться здесь динамически -->
+                </div>
+            </div>
+
+            <!-- Секция парка роботов -->
+            <div class="glass-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="section-title">🤖 Парк роботов</h3>
+                    <button type="button" class="btn btn-outline-success" onclick="addRobotType()">+ Добавить робота</button>
+                </div>
+                <p class="text-muted mb-3">Укажите типы и количество роботов, либо отметьте "По усмотрению" для автоматического подбора GigaChat</p>
+                
+                <div id="robotsContainer">
+                    <!-- Роботы будут добавляться здесь динамически -->
+                    <div class="robot-type-item">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-6">
+                                <label class="form-label">Тип робота</label>
+                                <select class="form-control coord-input robot-type" data-robot="0">
+                                    <option value="any">По усмотрению GigaChat</option>
+                                    <option value="T-100">Т-100 компакт</option>
+                                    <option value="T-500">Т-500 универсал</option>
+                                    <option value="T-1000">Т-1000 Титан</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Количество</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control coord-input robot-count robot-count-input" data-robot="0" min="0" value="0">
+                                    <span class="input-group-text">шт.</span>
+                                </div>
+                                <div class="form-check mt-1">
+                                    <input class="form-check-input robot-any-count" type="checkbox" data-robot="0" id="robotAnyCount0" checked>
+                                    <label class="form-check-label" for="robotAnyCount0">
+                                        По усмотрению GigaChat
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm mt-4" onclick="removeRobotType(0)">🗑️ Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="clearRobots()">🗑️ Очистить все</button>
+                </div>
+            </div>
+
+            <!-- Секция дополнительных деталей -->
+            <div class="glass-card">
+                <h3 class="section-title">📝 Дополнительные детали и требования</h3>
+                <div class="mb-3">
+                    <label class="form-label">Укажите дополнительные требования, тонкости работы или особые условия, которые должен учесть алгоритм:</label>
+                    <textarea class="form-control details-textarea" id="additionalDetails" placeholder="Например: 
+- Роботы должны избегать пересечения маршрутов
+- Приоритет у срочных заказов
+- Учитывать время зарядки роботов
+- Максимальная скорость роботов - 2 м/с
+- и т.д."></textarea>
+                </div>
+            </div>
+
+            <!-- Кнопки отправки -->
+            <div class="text-center mt-4">
+                <button type="button" class="btn btn-primary btn-lg" onclick="sendToGigaChat()">
+                    🤖 Рассчитать оптимальные маршруты
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // ============================================================
+        // КОНСТРУКТОР ЛОГИСТИЧЕСКОЙ СИСТЕМЫ
+        // ------------------------------------------------------------
+        // Этот файл — интерфейс для проектирования планировки цеха.
+        // Пользователь рисует на canvas: склад, точки погрузки/выгрузки,
+        // точки зарядки, препятствия и тоннели, затем задаёт параметры
+        // роботов и отправляет данные на Flask-сервер (server.py).
+        //
+        // Адрес сервера по умолчанию: http://127.0.0.1:8030
+        // Измените его в функции checkServerConnection() и sendToOptimize()
+        // если сервер запущен на другом хосте или порту.
+        //
+        // Результат генерации (JS-класс RobotController) сохраняется
+        // в localStorage и передаётся в visualizer.html.
+        // ============================================================
+
+        // Глобальные переменные для управления состоянием
+        let obstacles = [];
+        let loadingPoints = [];
+        let unloadingPoints = [];
+        let chargingPoints = [];
+        let tunnels = [];
+        let robotTypes = [
+            {
+                type: "any",
+                count: 0,
+                anyCount: true
+            }
+        ];
+        let basePoint = { coordinates: [5, 5] }; // Начальная точка загрузки
+        let warehouseArea = null; // Область склада
+        let currentMode = 'pan'; // 'pan', 'warehouse', 'base', 'loading', 'unloading', 'charging', 'tunnel', 'obstacle'
+        let currentObstaclePoints = [];
+        let currentTunnelPoints = [];
+        let currentWarehousePoints = [];
+        
+        // Элементы DOM
+        const canvas = document.getElementById('factoryCanvas');
+        const ctx = canvas.getContext('2d');
+        const coordinatesDisplay = document.getElementById('coordinatesDisplay');
+        const obstacleControls = document.getElementById('obstacleControls');
+        const tunnelControls = document.getElementById('tunnelControls');
+        const warehouseControls = document.getElementById('warehouseControls');
+        const zoomLevelDisplay = document.getElementById('zoomLevel');
+        
+        // Масштабирование и смещение
+        let baseScale = 1;
+        let userZoom = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let gridSize = 5; // Размер сетки в метрах
+        let roomWidth = 30;
+        let roomLength = 50;
+
+        // Переменные для перетаскивания и масштабирования
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        let touchStartDistance = 0;
+        let initialTouches = [];
+        let isDrawingMode = false; // Флаг для определения, рисуем ли мы сейчас
+
+        // Анимация тоннелей
+        let tunnelAnimationOffset = 0;
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            // Явная инициализация всех переменных
+            obstacles = [];
+            loadingPoints = [];
+            unloadingPoints = [];
+            chargingPoints = [];
+            tunnels = [];
+            robotTypes = [{ type: "any", count: 0, anyCount: true }];
+            basePoint = { coordinates: [5, 5] };
+            warehouseArea = null;
+            currentMode = 'pan';
+            currentObstaclePoints = [];
+            currentTunnelPoints = [];
+            currentWarehousePoints = [];
+            
+            // Устанавливаем размер canvas
+            setupCanvasSize();
+            setupEventListeners();
+            updateFactoryMap();
+            drawGrid();
+            updateRobotsUI();
+            
+            // Устанавливаем режим передвижения по умолчанию
+            setMode('pan');
+            
+            // Запускаем анимацию тоннелей
+            animateTunnels();
+            
+            // Проверяем соединение с сервером через 1 секунду после загрузки
+            setTimeout(checkServerConnection, 1000);
+        });
+
+        // Функция проверки соединения с сервером
+        async function checkServerConnection() {
+            try {
+                const response = await fetch('http://127.0.0.1:8030/health');
+                if (response.ok) {
+                    console.log('✅ Сервер доступен');
+                    return true;
+                }
+            } catch (error) {
+                console.warn('❌ Сервер недоступен:', error.message);
+            }
+            return false;
+        }
+
+        // Анимация тоннелей
+        function animateTunnels() {
+            tunnelAnimationOffset = (tunnelAnimationOffset + 0.02) % 1;
+            updateFactoryMap();
+            requestAnimationFrame(animateTunnels);
+        }
+
+        // Настройка размера canvas
+        function setupCanvasSize() {
+            // Для мобильных устройств устанавливаем больший размер
+            if (window.innerWidth <= 768) {
+                canvas.width = window.innerWidth * 0.95;
+                canvas.height = window.innerHeight * 0.6; // 60% высоты экрана
+            } else {
+                canvas.width = 800;
+                canvas.height = 500;
+            }
+        }
+
+        // Настройка обработчиков событий
+        function setupEventListeners() {
+            // Кнопки режимов
+            document.getElementById('panModeBtn').addEventListener('click', () => setMode('pan'));
+            document.getElementById('addWarehouseBtn').addEventListener('click', () => setMode('warehouse'));
+            document.getElementById('addBasePointBtn').addEventListener('click', () => setMode('base'));
+            document.getElementById('addLoadingPointBtn').addEventListener('click', () => setMode('loading'));
+            document.getElementById('addUnloadingPointBtn').addEventListener('click', () => setMode('unloading'));
+            document.getElementById('addChargingPointBtn').addEventListener('click', () => setMode('charging'));
+            document.getElementById('addTunnelBtn').addEventListener('click', () => setMode('tunnel'));
+            document.getElementById('addObstacleBtn').addEventListener('click', () => setMode('obstacle'));
+            document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+            document.getElementById('finishObstacleBtn').addEventListener('click', () => finishObstacle(true));
+            document.getElementById('finishObstacleLineBtn').addEventListener('click', () => finishObstacle(false));
+            document.getElementById('cancelObstacleBtn').addEventListener('click', cancelObstacle);
+            document.getElementById('finishTunnelBtn').addEventListener('click', finishTunnel);
+            document.getElementById('cancelTunnelBtn').addEventListener('click', cancelTunnel);
+            document.getElementById('finishWarehouseBtn').addEventListener('click', finishWarehouse);
+            document.getElementById('cancelWarehouseBtn').addEventListener('click', cancelWarehouse);
+            
+            // Кнопки масштабирования
+            document.getElementById('zoomInBtn').addEventListener('click', () => zoomAtCenter(1.2));
+            document.getElementById('zoomOutBtn').addEventListener('click', () => zoomAtCenter(0.8));
+            
+            // Изменение размеров цеха
+            document.getElementById('length').addEventListener('input', updateFactoryMap);
+            document.getElementById('width').addEventListener('input', updateFactoryMap);
+            document.getElementById('height').addEventListener('input', updateFactoryMap);
+            
+            // Обработка событий мыши
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('wheel', handleWheel);
+            canvas.addEventListener('mousedown', startDragging);
+            canvas.addEventListener('mouseup', stopDragging);
+            canvas.addEventListener('mouseleave', stopDragging);
+            
+            // Обработка событий касания - для мобильных устройств
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd);
+            canvas.addEventListener('touchcancel', handleTouchEnd);
+            
+            // Изменение размера окна
+            window.addEventListener('resize', function() {
+                setupCanvasSize();
+                updateFactoryMap();
+            });
+            
+            // Обработчики для базовой точки
+            document.querySelectorAll('.base-coord-x, .base-coord-y').forEach(input => {
+                input.addEventListener('input', handleBasePointChange);
+            });
+
+            // Обработчики для динамически создаваемых элементов через делегирование событий
+            document.getElementById('robotsContainer').addEventListener('change', function(event) {
+                if (event.target.classList.contains('robot-type') || 
+                    event.target.classList.contains('robot-count') ||
+                    event.target.classList.contains('robot-any-count')) {
+                    handleRobotChange(event);
+                }
+            });
+            
+            document.getElementById('robotsContainer').addEventListener('input', function(event) {
+                if (event.target.classList.contains('robot-count')) {
+                    handleRobotChange(event);
+                }
+            });
+        }
+
+        // Функция проверки пустых полей
+        function checkEmptyFields() {
+            // Проверка точек погрузки
+            for (let point of loadingPoints) {
+                if (!point.totalWeight || !point.unitWeight || !point.cargoType) {
+                    return false;
+                }
+            }
+            
+            // Проверка точек выгрузки
+            for (let point of unloadingPoints) {
+                for (let req of point.requirements) {
+                    if (!req.maxCapacity || !req.cargoType || !req.totalWeight) {
+                        return false;
+                    }
+                }
+            }
+            
+            // Проверка точек зарядки
+            for (let point of chargingPoints) {
+                if (!point.chargingPlaces) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        // Функция проверки соответствия типов грузов
+        function checkCargoTypes() {
+            // Собираем все типы грузов из точек погрузки
+            const loadingCargoTypes = new Set();
+            for (let point of loadingPoints) {
+                if (point.cargoType) {
+                    loadingCargoTypes.add(point.cargoType.trim().toLowerCase());
+                }
+            }
+            
+            // Проверяем все типы грузов в точках выгрузки
+            for (let point of unloadingPoints) {
+                for (let req of point.requirements) {
+                    if (req.cargoType && !loadingCargoTypes.has(req.cargoType.trim().toLowerCase())) {
+                        return {
+                            valid: false,
+                            missingCargo: req.cargoType
+                        };
+                    }
+                }
+            }
+            
+            return { valid: true };
+        }
+
+        // Обработчик изменения координат базовой точки
+        function handleBasePointChange(event) {
+            const isX = event.target.classList.contains('base-coord-x');
+            const value = parseFloat(event.target.value) || 0;
+            
+            if (isX) {
+                basePoint.coordinates[0] = value;
+            } else {
+                basePoint.coordinates[1] = value;
+            }
+            
+            updateFactoryMap();
+        }
+
+        // Установка базовой точки с карты
+        function setBasePointFromMap() {
+            setMode('base');
+            alert('Перейдите в режим "Базовая" и кликните на карте, чтобы установить начальную точку загрузки');
+        }
+
+        // Установка режима склада
+        function setWarehouseMode() {
+            setMode('warehouse');
+            alert('Кликните на карте, чтобы определить углы склада (минимум 3 точки), затем нажмите "Завершить склад"');
+        }
+
+        // Установка режима тоннеля
+        function setTunnelMode() {
+            if (!warehouseArea && !basePoint.coordinates) {
+                alert('Сначала определите область склада или базовую точку!');
+                return;
+            }
+            if (loadingPoints.length === 0 && !warehouseArea) {
+                alert('Добавьте хотя бы одну точку погрузки для создания тоннеля от склада!');
+                return;
+            }
+            setMode('tunnel');
+            alert('Кликните на карте, чтобы построить тоннель от склада к точке погрузки или от базовой точки к складу');
+        }
+
+        // Функция добавления нового робота
+        function addRobotType() {
+            const newRobot = {
+                type: "any",
+                count: 0,
+                anyCount: true
+            };
+            
+            robotTypes.push(newRobot);
+            updateRobotsUI();
+        }
+
+        // Функция удаления робота
+        function removeRobotType(index) {
+            if (robotTypes.length > 1) {
+                robotTypes.splice(index, 1);
+                updateRobotsUI();
+            } else {
+                alert("Должен остаться хотя бы один робот!");
+            }
+        }
+
+        // Функция обновления UI роботов
+        function updateRobotsUI() {
+            const container = document.getElementById('robotsContainer');
+            container.innerHTML = '';
+            
+            robotTypes.forEach((robot, index) => {
+                const robotDiv = document.createElement('div');
+                robotDiv.className = 'robot-type-item';
+                robotDiv.innerHTML = `
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                            <label class="form-label">Тип робота</label>
+                            <select class="form-control coord-input robot-type" data-robot="${index}">
+                                <option value="any" ${robot.type === 'any' ? 'selected' : ''}>По усмотрению GigaChat</option>
+                                <option value="T-100" ${robot.type === 'T-100' ? 'selected' : ''}>Т-100 компакт</option>
+                                <option value="T-500" ${robot.type === 'T-500' ? 'selected' : ''}>Т-500 универсал</option>
+                                <option value="T-1000" ${robot.type === 'T-1000' ? 'selected' : ''}>Т-1000 Титан</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Количество</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control coord-input robot-count robot-count-input" data-robot="${index}" min="0" value="${robot.count}" ${robot.anyCount ? 'disabled' : ''}>
+                                <span class="input-group-text">шт.</span>
+                            </div>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input robot-any-count" type="checkbox" data-robot="${index}" id="robotAnyCount${index}" ${robot.anyCount ? 'checked' : ''}>
+                                <label class="form-check-label" for="robotAnyCount${index}">
+                                    По усмотрению GigaChat
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-danger btn-sm mt-4" onclick="removeRobotType(${index})">🗑️ Удалить</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(robotDiv);
+            });
+        }
+
+        // Обработчик изменений типа робота или количества
+        function handleRobotChange(event) {
+            const robotIndex = parseInt(event.target.getAttribute('data-robot'));
+            
+            if (robotTypes[robotIndex]) {
+                if (event.target.classList.contains('robot-type')) {
+                    robotTypes[robotIndex].type = event.target.value;
+                } else if (event.target.classList.contains('robot-count')) {
+                    robotTypes[robotIndex].count = parseInt(event.target.value) || 0;
+                } else if (event.target.classList.contains('robot-any-count')) {
+                    const isChecked = event.target.checked;
+                    robotTypes[robotIndex].anyCount = isChecked;
+                    
+                    // Обновляем состояние поля ввода количества
+                    const countInput = document.querySelector(`.robot-count[data-robot="${robotIndex}"]`);
+                    if (countInput) {
+                        countInput.disabled = isChecked;
+                        if (isChecked) {
+                            robotTypes[robotIndex].count = 0;
+                            countInput.value = 0;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Функция очистки всех роботов
+        function clearRobots() {
+            robotTypes = [
+                { type: "any", count: 0, anyCount: true }
+            ];
+            updateRobotsUI();
+        }
+
+        // Обработка начала перетаскивания мышью
+        function startDragging(event) {
+            if (event.button !== 0) return; // Только левая кнопка мыши
+            
+            // Разрешаем перетаскивание только в режиме передвижения
+            if (currentMode !== 'pan') return;
+            
+            isDragging = true;
+            lastX = event.clientX;
+            lastY = event.clientY;
+            canvas.style.cursor = 'grabbing';
+        }
+
+        // Обработка окончания перетаскивания мышью
+        function stopDragging() {
+            isDragging = false;
+            
+            if (currentMode === 'pan') {
+                canvas.style.cursor = 'grab';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+
+        // Обработка начала касания
+        function handleTouchStart(event) {
+            event.preventDefault();
+            
+            if (currentMode !== 'pan') {
+                // Для режимов рисования обрабатываем касание как клик
+                if (event.touches.length === 1) {
+                    const touch = event.touches[0];
+                    handleCanvasTap(touch.clientX, touch.clientY);
+                }
+                return;
+            }
+            
+            if (event.touches.length === 1) {
+                // Одно касание - начало перетаскивания (только в режиме pan)
+                isDragging = true;
+                lastX = event.touches[0].clientX;
+                lastY = event.touches[0].clientY;
+                initialTouches = [{
+                    x: event.touches[0].clientX,
+                    y: event.touches[0].clientY
+                }];
+            } else if (event.touches.length === 2) {
+                // Два касания - начало жеста масштабирования
+                isDragging = false;
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                touchStartDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                initialTouches = [
+                    { x: touch1.clientX, y: touch1.clientY },
+                    { x: touch2.clientX, y: touch2.clientY }
+                ];
+            }
+        }
+
+        // Обработка перемещения касания
+        function handleTouchMove(event) {
+            event.preventDefault();
+            
+            if (event.touches.length === 1 && isDragging && currentMode === 'pan') {
+                // Перетаскивание одним пальцем (только в режиме pan)
+                const currentX = event.touches[0].clientX;
+                const currentY = event.touches[0].clientY;
+                
+                const dx = currentX - lastX;
+                const dy = currentY - lastY;
+                
+                offsetX += dx;
+                offsetY += dy;
+                
+                lastX = currentX;
+                lastY = currentY;
+                
+                updateFactoryMap();
+            } else if (event.touches.length === 2) {
+                // Масштабирование двумя пальцами
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                const currentDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                if (touchStartDistance > 0) {
+                    const scaleFactor = currentDistance / touchStartDistance;
+                    const centerX = (touch1.clientX + touch2.clientX) / 2;
+                    const centerY = (touch1.clientY + touch2.clientY) / 2;
+                    
+                    zoomAt(centerX, centerY, scaleFactor);
+                    touchStartDistance = currentDistance;
+                }
+            }
+        }
+
+        // Обработка окончания касания
+        function handleTouchEnd(event) {
+            if (event.touches.length === 0) {
+                isDragging = false;
+                initialTouches = [];
+                touchStartDistance = 0;
+            } else if (event.touches.length === 1) {
+                // Переключение с масштабирования на перетаскивание
+                if (currentMode === 'pan') {
+                    isDragging = true;
+                    lastX = event.touches[0].clientX;
+                    lastY = event.touches[0].clientY;
+                }
+                initialTouches = [{
+                    x: event.touches[0].clientX,
+                    y: event.touches[0].clientY
+                }];
+            }
+        }
+
+        // Обработка касания для добавления точек
+        function handleCanvasTap(clientX, clientY) {
+            // Если мы в режиме перетаскивания или не в режиме рисования, не обрабатываем
+            if (isDragging || currentMode === 'pan' || currentMode === null) return;
+            
+            // Получаем мировые координаты
+            const worldCoords = getWorldCoords(clientX, clientY);
+            if (!worldCoords) return;
+            
+            const { x, y } = worldCoords;
+            
+            // Проверяем, что касание внутри цеха
+            if (x < 0 || x > roomLength || y < 0 || y > roomWidth) return;
+            
+            // Проверяем, не попадает ли точка внутрь существующего препятствия или склада
+            if ((currentMode === 'base' || currentMode === 'loading' || currentMode === 'unloading' || currentMode === 'charging') && 
+                (isPointInAnyObstacle(x, y) || (warehouseArea && isPointInPolygon(x, y, warehouseArea.coordinates)))) {
+                alert('Нельзя размещать точки внутри препятствий или склада!');
+                return;
+            }
+            
+            // Проверяем, не попадает ли точка на тоннель
+            if ((currentMode === 'base' || currentMode === 'loading' || currentMode === 'unloading' || currentMode === 'charging' || 
+                 currentMode === 'obstacle' || currentMode === 'warehouse') && isPointNearTunnel(x, y, 1.5)) {
+                alert('Нельзя размещать точки, препятствия или склад на тоннеле!');
+                return;
+            }
+            
+            // Добавляем точку в зависимости от текущего режима
+            if (currentMode === 'base') {
+                setBasePointFromClick(x, y);
+            } else if (currentMode === 'loading') {
+                addLoadingPointFromClick(x, y);
+            } else if (currentMode === 'unloading') {
+                addUnloadingPointFromClick(x, y);
+            } else if (currentMode === 'charging') {
+                addChargingPointFromClick(x, y);
+            } else if (currentMode === 'obstacle') {
+                addObstaclePointFromClick(x, y);
+            } else if (currentMode === 'tunnel') {
+                addTunnelPointFromClick(x, y);
+            } else if (currentMode === 'warehouse') {
+                addWarehousePointFromClick(x, y);
+            }
+        }
+
+        // Проверка, находится ли точка рядом с тоннелем
+        function isPointNearTunnel(x, y, threshold) {
+            for (let tunnel of tunnels) {
+                for (let i = 0; i < tunnel.points.length - 1; i++) {
+                    const p1 = tunnel.points[i];
+                    const p2 = tunnel.points[i+1];
+                    
+                    // Вычисляем расстояние от точки до отрезка
+                    const distance = pointToLineDistance(x, y, p1.x, p1.y, p2.x, p2.y);
+                    if (distance < threshold) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Вычисление расстояния от точки до отрезка
+        function pointToLineDistance(x, y, x1, y1, x2, y2) {
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            if (lenSq !== 0) {
+                param = dot / lenSq;
+            }
+
+            let xx, yy;
+
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+
+            const dx = x - xx;
+            const dy = y - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Установка базовой точки с клика
+        function setBasePointFromClick(x, y) {
+            basePoint.coordinates = [x, y];
+            
+            // Обновляем поля ввода
+            document.querySelector('.base-coord-x').value = x.toFixed(1);
+            document.querySelector('.base-coord-y').value = y.toFixed(1);
+            
+            updateFactoryMap();
+            
+            // Возвращаемся в режим передвижения после установки базовой точки
+            setMode('pan');
+            alert('Базовая точка установлена!');
+        }
+
+        // Масштабирование колесиком мыши
+        function handleWheel(event) {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            if (event.deltaY < 0) {
+                zoomAt(x, y, 1.2);
+            } else {
+                zoomAt(x, y, 0.8);
+            }
+        }
+
+        // Масштабирование относительно центра
+        function zoomAtCenter(factor) {
+            const rect = canvas.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            zoomAt(centerX, centerY, factor);
+        }
+
+        // Масштабирование относительно точки
+        function zoomAt(x, y, factor) {
+            const oldZoom = userZoom;
+            userZoom = Math.max(0.2, Math.min(5, userZoom * factor));
+            
+            // Корректируем смещение для сохранения позиции точки под курсором
+            const worldX = (x - offsetX) / (baseScale * oldZoom);
+            const worldY = (y - offsetY) / (baseScale * oldZoom);
+            
+            offsetX = x - worldX * (baseScale * userZoom);
+            offsetY = y - worldY * (baseScale * userZoom);
+            
+            updateZoomDisplay();
+            updateFactoryMap();
+        }
+
+        // Увеличение масштаба
+        function zoomIn() {
+            zoomAtCenter(1.2);
+        }
+
+        // Уменьшение масштаба
+        function zoomOut() {
+            zoomAtCenter(0.8);
+        }
+
+        // Обновление отображения уровня масштаба
+        function updateZoomDisplay() {
+            zoomLevelDisplay.textContent = Math.round(userZoom * 100) + '%';
+        }
+
+        // Установка режима работы
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // Сброс текущих точек при смене режима
+            if (mode !== 'obstacle') {
+                currentObstaclePoints = [];
+                obstacleControls.style.display = 'none';
+            } else {
+                obstacleControls.style.display = 'flex';
+            }
+            
+            if (mode !== 'tunnel') {
+                currentTunnelPoints = [];
+                tunnelControls.style.display = 'none';
+            } else {
+                tunnelControls.style.display = 'flex';
+            }
+            
+            if (mode !== 'warehouse') {
+                currentWarehousePoints = [];
+                warehouseControls.style.display = 'none';
+            } else {
+                warehouseControls.style.display = 'flex';
+            }
+            
+            // Обновление стилей кнопок
+            document.querySelectorAll('#panModeBtn, #addWarehouseBtn, #addBasePointBtn, #addLoadingPointBtn, #addUnloadingPointBtn, #addChargingPointBtn, #addTunnelBtn, #addObstacleBtn').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-success');
+            });
+            
+            // Обновление курсора
+            if (mode === 'pan') {
+                canvas.style.cursor = isDragging ? 'grabbing' : 'grab';
+                document.getElementById('panModeBtn').classList.remove('btn-outline-success');
+                document.getElementById('panModeBtn').classList.add('btn-primary');
+            } else {
+                canvas.style.cursor = 'crosshair';
+                
+                if (mode === 'warehouse') {
+                    document.getElementById('addWarehouseBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addWarehouseBtn').classList.add('btn-primary');
+                } else if (mode === 'base') {
+                    document.getElementById('addBasePointBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addBasePointBtn').classList.add('btn-primary');
+                } else if (mode === 'loading') {
+                    document.getElementById('addLoadingPointBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addLoadingPointBtn').classList.add('btn-primary');
+                } else if (mode === 'unloading') {
+                    document.getElementById('addUnloadingPointBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addUnloadingPointBtn').classList.add('btn-primary');
+                } else if (mode === 'charging') {
+                    document.getElementById('addChargingPointBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addChargingPointBtn').classList.add('btn-primary');
+                } else if (mode === 'tunnel') {
+                    document.getElementById('addTunnelBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addTunnelBtn').classList.add('btn-primary');
+                } else if (mode === 'obstacle') {
+                    document.getElementById('addObstacleBtn').classList.remove('btn-outline-success');
+                    document.getElementById('addObstacleBtn').classList.add('btn-primary');
+                }
+            }
+            
+            updateFactoryMap();
+        }
+
+        // Обработка движения мыши
+        function handleMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = baseScale * userZoom;
+            
+            // Обработка перетаскивания (только в режиме pan)
+            if (isDragging && currentMode === 'pan') {
+                const currentX = event.clientX;
+                const currentY = event.clientY;
+                
+                const dx = currentX - lastX;
+                const dy = currentY - lastY;
+                
+                offsetX += dx;
+                offsetY += dy;
+                
+                lastX = currentX;
+                lastY = currentY;
+                
+                updateFactoryMap();
+                return;
+            }
+            
+            // Получаем мировые координаты для отображения
+            const worldCoords = getWorldCoords(event.clientX, event.clientY);
+            if (!worldCoords) return;
+            
+            const { x, y } = worldCoords;
+            
+            // Отображение координат - фиксированно рядом с курсором
+            coordinatesDisplay.style.display = 'block';
+            coordinatesDisplay.style.left = (event.clientX + 15) + 'px';
+            coordinatesDisplay.style.top = (event.clientY + 15) + 'px';
+            coordinatesDisplay.textContent = `X: ${x.toFixed(1)}, Y: ${y.toFixed(1)}`;
+            
+            // Обновление карты для отображения временных элементов
+            updateFactoryMap();
+        }
+
+        // Получение мировых координат из координат мыши/касания
+        function getWorldCoords(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = baseScale * userZoom;
+            
+            // Преобразуем координаты canvas в мировые координаты
+            const canvasX = clientX - rect.left;
+            const canvasY = clientY - rect.top;
+            
+            // Проверяем, что координаты внутри canvas
+            if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
+                return null;
+            }
+            
+            // Упрощенное преобразование координат
+            const x = (canvasX - offsetX) / scale;
+            const y = roomWidth - (canvasY - offsetY) / scale;
+            
+            return { x, y };
+        }
+
+        // Обработка клика на canvas
+        function handleCanvasClick(event) {
+            // Если мы в режиме перетаскивания, не обрабатываем клик
+            if (isDragging || currentMode === 'pan') return;
+            
+            // Получаем мировые координаты
+            const worldCoords = getWorldCoords(event.clientX, event.clientY);
+            if (!worldCoords) return;
+            
+            const { x, y } = worldCoords;
+            
+            // Проверяем, что клик внутри цеха
+            if (x < 0 || x > roomLength || y < 0 || y > roomWidth) return;
+            
+            // Проверяем, не попадает ли точка внутрь существующего препятствия или склада
+            if ((currentMode === 'base' || currentMode === 'loading' || currentMode === 'unloading' || currentMode === 'charging') && 
+                (isPointInAnyObstacle(x, y) || (warehouseArea && isPointInPolygon(x, y, warehouseArea.coordinates)))) {
+                alert('Нельзя размещать точки внутри препятствий или склада!');
+                return;
+            }
+            
+            // Проверяем, не попадает ли точка на тоннель
+            if ((currentMode === 'base' || currentMode === 'loading' || currentMode === 'unloading' || currentMode === 'charging' || 
+                 currentMode === 'obstacle' || currentMode === 'warehouse') && isPointNearTunnel(x, y, 1.5)) {
+                alert('Нельзя размещать точки, препятствия или склад на тоннеле!');
+                return;
+            }
+            
+            if (currentMode === 'base') {
+                setBasePointFromClick(x, y);
+            } else if (currentMode === 'loading') {
+                addLoadingPointFromClick(x, y);
+            } else if (currentMode === 'unloading') {
+                addUnloadingPointFromClick(x, y);
+            } else if (currentMode === 'charging') {
+                addChargingPointFromClick(x, y);
+            } else if (currentMode === 'obstacle') {
+                addObstaclePointFromClick(x, y);
+            } else if (currentMode === 'tunnel') {
+                addTunnelPointFromClick(x, y);
+            } else if (currentMode === 'warehouse') {
+                addWarehousePointFromClick(x, y);
+            }
+        }
+
+        // Проверка, находится ли точка внутри любого препятствия
+        function isPointInAnyObstacle(x, y) {
+            for (let obstacle of obstacles) {
+                if (obstacle.withArea && isPointInPolygon(x, y, obstacle.coordinates)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Алгоритм проверки точки внутри многоугольника (используя ray casting)
+        function isPointInPolygon(x, y, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i][0], yi = polygon[i][1];
+                const xj = polygon[j][0], yj = polygon[j][1];
+                
+                const intersect = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // Проверка пересечения отрезков
+        function segmentsIntersect(a, b, c, d) {
+            function ccw(A, B, C) {
+                return (C[1]-A[1])*(B[0]-A[0]) > (B[1]-A[1])*(C[0]-A[0]);
+            }
+            
+            return ccw(a,c,d) != ccw(b,c,d) && ccw(a,b,c) != ccw(a,b,d);
+        }
+
+        // Проверка, пересекает ли тоннель препятствия
+        function tunnelIntersectsObstacles(tunnelPoints) {
+            // Проверяем каждый сегмент тоннеля
+            for (let i = 0; i < tunnelPoints.length - 1; i++) {
+                const tunnelStart = [tunnelPoints[i].x, tunnelPoints[i].y];
+                const tunnelEnd = [tunnelPoints[i+1].x, tunnelPoints[i+1].y];
+                
+                // Проверяем с каждым препятствием
+                for (let obstacle of obstacles) {
+                    // Для препятствий с площадью проверяем пересечение с границами
+                    if (obstacle.withArea) {
+                        // Проверяем каждый сегмент препятствия
+                        for (let j = 0; j < obstacle.coordinates.length; j++) {
+                            const obstStart = obstacle.coordinates[j];
+                            const obstEnd = obstacle.coordinates[(j+1) % obstacle.coordinates.length];
+                            
+                            if (segmentsIntersect(tunnelStart, tunnelEnd, obstStart, obstEnd)) {
+                                return true;
+                            }
+                        }
+                    } else {
+                        // Для перегородок проверяем каждый сегмент
+                        for (let j = 0; j < obstacle.coordinates.length - 1; j++) {
+                            const obstStart = obstacle.coordinates[j];
+                            const obstEnd = obstacle.coordinates[j+1];
+                            
+                            if (segmentsIntersect(tunnelStart, tunnelEnd, obstStart, obstEnd)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Проверка пересечения со складом
+        function intersectsWarehouse(points, isPolygon = false) {
+            if (!warehouseArea) return false;
+            
+            const warehouseCoords = warehouseArea.coordinates;
+            
+            // Проверяем каждую точку на нахождение внутри склада
+            for (let point of points) {
+                const pointArray = isPolygon ? point : [point.x, point.y];
+                if (isPointInPolygon(pointArray[0], pointArray[1], warehouseCoords)) {
+                    return true;
+                }
+            }
+            
+            // Проверяем пересечение сторон
+            if (isPolygon) {
+                // Для многоугольника проверяем каждую сторону
+                for (let i = 0; i < points.length; i++) {
+                    const p1 = points[i];
+                    const p2 = points[(i+1) % points.length];
+                    
+                    for (let j = 0; j < warehouseCoords.length; j++) {
+                        const w1 = warehouseCoords[j];
+                        const w2 = warehouseCoords[(j+1) % warehouseCoords.length];
+                        
+                        if (segmentsIntersect(p1, p2, w1, w2)) {
+                            return true;
+                        }
+                    }
+                }
+            } else {
+                // Для ломаной линии проверяем каждый сегмент
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = [points[i].x, points[i].y];
+                    const p2 = [points[i+1].x, points[i+1].y];
+                    
+                    for (let j = 0; j < warehouseCoords.length; j++) {
+                        const w1 = warehouseCoords[j];
+                        const w2 = warehouseCoords[(j+1) % warehouseCoords.length];
+                        
+                        if (segmentsIntersect(p1, p2, w1, w2)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        // Добавление точки погрузки с карты
+        function addLoadingPointFromClick(x, y) {
+            const point = {
+                id: loadingPoints.length + 1,
+                coordinates: [x, y],
+                totalWeight: '',
+                unitWeight: '',
+                cargoType: ''
+            };
+            
+            loadingPoints.push(point);
+            updateLoadingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Добавление точки выгрузки с карты
+        function addUnloadingPointFromClick(x, y) {
+            const point = {
+                id: unloadingPoints.length + 1,
+                coordinates: [x, y],
+                requirements: [
+                    {
+                        maxCapacity: '',
+                        cargoType: '',
+                        totalWeight: ''
+                    }
+                ]
+            };
+            
+            unloadingPoints.push(point);
+            updateUnloadingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Добавление точки зарядки с карты
+        function addChargingPointFromClick(x, y) {
+            const point = {
+                id: chargingPoints.length + 1,
+                coordinates: [x, y],
+                chargingPlaces: ''
+            };
+            
+            chargingPoints.push(point);
+            updateChargingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Добавление точки препятствия
+        function addObstaclePointFromClick(x, y) {
+            currentObstaclePoints.push({x, y});
+            updateFactoryMap();
+        }
+
+        // Добавление точки тоннеля
+        function addTunnelPointFromClick(x, y) {
+            currentTunnelPoints.push({x, y});
+            updateFactoryMap();
+        }
+
+        // Добавление точки склада
+        function addWarehousePointFromClick(x, y) {
+            currentWarehousePoints.push({x, y});
+            updateFactoryMap();
+        }
+
+        // Завершение рисования препятствия
+        function finishObstacle(withArea) {
+            // Для препятствий с площадью нужно минимум 3 точки
+            if (withArea && currentObstaclePoints.length < 3) {
+                alert('Для создания препятствия с площадью нужно как минимум 3 точки');
+                return;
+            }
+            
+            // Для перегородок (ломаных) нужно минимум 2 точки
+            if (!withArea && currentObstaclePoints.length < 2) {
+                alert('Для создания перегородки нужно как минимум 2 точки');
+                return;
+            }
+            
+            // Проверяем, не содержат ли новые препятствия существующие точки
+            const obstacleCoords = currentObstaclePoints.map(p => [p.x, p.y]);
+            const pointsInObstacle = [];
+            
+            // Проверяем базовую точку
+            if (withArea && isPointInPolygon(basePoint.coordinates[0], basePoint.coordinates[1], obstacleCoords)) {
+                pointsInObstacle.push(`Базовую точку`);
+            }
+            
+            // Проверяем точки погрузки
+            loadingPoints.forEach(point => {
+                if (withArea && isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                    pointsInObstacle.push(`Точку погрузки П${point.id}`);
+                }
+            });
+            
+            // Проверяем точки выгрузки
+            unloadingPoints.forEach(point => {
+                if (withArea && isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                    pointsInObstacle.push(`Точку выгрузки В${point.id}`);
+                }
+            });
+            
+            // Проверяем точки зарядки
+            chargingPoints.forEach(point => {
+                if (withArea && isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                    pointsInObstacle.push(`Точку зарядки З${point.id}`);
+                }
+            });
+            
+            // Проверяем склад
+            if (warehouseArea && withArea) {
+                const warehouseCenterX = warehouseArea.coordinates.reduce((sum, p) => sum + p[0], 0) / warehouseArea.coordinates.length;
+                const warehouseCenterY = warehouseArea.coordinates.reduce((sum, p) => sum + p[1], 0) / warehouseArea.coordinates.length;
+                if (isPointInPolygon(warehouseCenterX, warehouseCenterY, obstacleCoords)) {
+                    pointsInObstacle.push(`Склад`);
+                }
+            }
+            
+            // Проверяем, не пересекается ли препятствие с тоннелями
+            for (let point of currentObstaclePoints) {
+                if (isPointNearTunnel(point.x, point.y, 1.5)) {
+                    alert('Нельзя создавать препятствие на тоннеле!');
+                    return;
+                }
+            }
+            
+            // ПРОВЕРКА ПЕРЕСЕЧЕНИЯ СО СКЛАДОМ
+            if (warehouseArea && intersectsWarehouse(withArea ? obstacleCoords : currentObstaclePoints, withArea)) {
+                alert('Нельзя создавать препятствие, которое пересекается со складом!');
+                return;
+            }
+            
+            if (pointsInObstacle.length > 0) {
+                alert(`Нельзя создать препятствие, которое содержит:\n${pointsInObstacle.join('\n')}`);
+                return;
+            }
+            
+            const obstacle = {
+                id: obstacles.length + 1,
+                coordinates: currentObstaclePoints.map(p => [p.x, p.y]),
+                withArea: withArea
+            };
+            
+            obstacles.push(obstacle);
+            updateObstaclesUI();
+            
+            // Сброс текущего препятствия
+            currentObstaclePoints = [];
+            obstacleControls.style.display = 'none';
+            setMode('pan'); // Возвращаемся в режим передвижения после создания препятствия
+            updateFactoryMap();
+        }
+
+        // Завершение рисования тоннеля
+        function finishTunnel() {
+            if (currentTunnelPoints.length < 2) {
+                alert('Тоннель должен иметь как минимум 2 точки');
+                return;
+            }
+            
+            // Проверяем, что тоннель начинается от склада ИЛИ от базовой точки
+            const startPoint = currentTunnelPoints[0];
+            let startsFromWarehouse = false;
+            let startsFromBase = false;
+            
+            if (warehouseArea && isPointInPolygon(startPoint.x, startPoint.y, warehouseArea.coordinates)) {
+                startsFromWarehouse = true;
+            }
+            
+            // Проверяем, начинается ли от базовой точки (с небольшим допуском)
+            const baseDistance = Math.sqrt(
+                Math.pow(basePoint.coordinates[0] - startPoint.x, 2) + 
+                Math.pow(basePoint.coordinates[1] - startPoint.y, 2)
+            );
+            if (baseDistance < 2) {
+                startsFromBase = true;
+            }
+            
+            if (!startsFromWarehouse && !startsFromBase) {
+                alert('Тоннель должен начинаться от склада ИЛИ от базовой точки!');
+                return;
+            }
+            
+            // Проверяем, что тоннель заканчивается на точке погрузки (если начинается от склада)
+            // или на складе (если начинается от базовой точки)
+            const endPoint = currentTunnelPoints[currentTunnelPoints.length - 1];
+            let endsAtLoadingPoint = false;
+            let endsAtWarehouse = false;
+            let targetLoadingPoint = null;
+            
+            if (startsFromWarehouse) {
+                // Тоннель от склада должен заканчиваться на точке погрузки
+                for (let point of loadingPoints) {
+                    const distance = Math.sqrt(
+                        Math.pow(point.coordinates[0] - endPoint.x, 2) + 
+                        Math.pow(point.coordinates[1] - endPoint.y, 2)
+                    );
+                    if (distance < 2) { // Если конечная точка близко к точке погрузки
+                        endsAtLoadingPoint = true;
+                        targetLoadingPoint = point.id;
+                        break;
+                    }
+                }
+                
+                if (!endsAtLoadingPoint) {
+                    alert('Тоннель от склада должен заканчиваться на точке погрузки!');
+                    return;
+                }
+            } else if (startsFromBase) {
+                // Тоннель от базовой точки должен заканчиваться на складе
+                if (warehouseArea && isPointInPolygon(endPoint.x, endPoint.y, warehouseArea.coordinates)) {
+                    endsAtWarehouse = true;
+                } else {
+                    alert('Тоннель от базовой точки должен заканчиваться на складе!');
+                    return;
+                }
+            }
+            
+            // Проверяем, не пересекает ли тоннель препятствия
+            if (tunnelIntersectsObstacles(currentTunnelPoints)) {
+                alert('Тоннель не может пересекать препятствия или перегородки!');
+                return;
+            }
+            
+            // Определяем тип материала тоннеля
+            let materialType = 'Общий';
+            if (startsFromWarehouse) {
+                // Находим точку погрузки для определения типа материала
+                const loadingPoint = loadingPoints.find(p => p.id === targetLoadingPoint);
+                if (loadingPoint && loadingPoint.cargoType) {
+                    materialType = loadingPoint.cargoType;
+                }
+            }
+            
+            const tunnel = {
+                id: tunnels.length + 1,
+                points: [...currentTunnelPoints],
+                targetLoadingPoint: startsFromWarehouse ? targetLoadingPoint : null,
+                materialType: materialType,
+                startsFrom: startsFromWarehouse ? 'warehouse' : 'base',
+                endsAt: startsFromWarehouse ? 'loading' : 'warehouse'
+            };
+            
+            tunnels.push(tunnel);
+            updateTunnelsUI();
+            
+            // Сброс текущего тоннеля
+            currentTunnelPoints = [];
+            tunnelControls.style.display = 'none';
+            setMode('pan');
+            updateFactoryMap();
+        }
+
+        // Завершение рисования склада
+        function finishWarehouse() {
+            if (currentWarehousePoints.length < 3) {
+                alert('Для создания склада нужно как минимум 3 точки');
+                return;
+            }
+            
+            // Проверяем, не содержат ли склад существующие точки
+            const warehouseCoords = currentWarehousePoints.map(p => [p.x, p.y]);
+            const pointsInWarehouse = [];
+            
+            // Проверяем базовую точку
+            if (isPointInPolygon(basePoint.coordinates[0], basePoint.coordinates[1], warehouseCoords)) {
+                pointsInWarehouse.push(`Базовую точку`);
+            }
+            
+            // Проверяем точки погрузки
+            loadingPoints.forEach(point => {
+                if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                    pointsInWarehouse.push(`Точку погрузки П${point.id}`);
+                }
+            });
+            
+            // Проверяем точки выгрузки
+            unloadingPoints.forEach(point => {
+                if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                    pointsInWarehouse.push(`Точку выгрузки В${point.id}`);
+                }
+            });
+            
+            // Проверяем точки зарядки
+            chargingPoints.forEach(point => {
+                if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                    pointsInWarehouse.push(`Точку зарядки З${point.id}`);
+                }
+            });
+            
+            // Проверяем препятствия
+            obstacles.forEach(obstacle => {
+                if (obstacle.withArea) {
+                    const obstacleCenterX = obstacle.coordinates.reduce((sum, p) => sum + p[0], 0) / obstacle.coordinates.length;
+                    const obstacleCenterY = obstacle.coordinates.reduce((sum, p) => sum + p[1], 0) / obstacle.coordinates.length;
+                    if (isPointInPolygon(obstacleCenterX, obstacleCenterY, warehouseCoords)) {
+                        pointsInWarehouse.push(`Препятствие ${obstacle.id}`);
+                    }
+                }
+            });
+            
+            // Проверяем, не пересекается ли склад с тоннелями
+            for (let point of currentWarehousePoints) {
+                if (isPointNearTunnel(point.x, point.y, 1.5)) {
+                    alert('Нельзя создавать склад на тоннеле!');
+                    return;
+                }
+            }
+            
+            // Проверяем, не пересекается ли склад с препятствиями
+            for (let obstacle of obstacles) {
+                if (obstacle.withArea) {
+                    // Проверяем каждую точку склада на пересечение с препятствиями
+                    for (let point of warehouseCoords) {
+                        if (isPointInPolygon(point[0], point[1], obstacle.coordinates)) {
+                            alert('Склад не может пересекаться с препятствиями!');
+                            return;
+                        }
+                    }
+                    // Проверяем каждую точку препятствия на пересечение со складом
+                    for (let point of obstacle.coordinates) {
+                        if (isPointInPolygon(point[0], point[1], warehouseCoords)) {
+                            alert('Склад не может пересекаться с препятствиями!');
+                            return;
+                        }
+                    }
+                } else {
+                    // Проверяем пересечение перегородок со складом
+                    if (intersectsWarehouse(currentWarehousePoints, true)) {
+                        alert('Склад не может пересекаться с перегородками!');
+                        return;
+                    }
+                }
+            }
+            
+            if (pointsInWarehouse.length > 0) {
+                alert(`Нельзя создать склад, который содержит:\n${pointsInWarehouse.join('\n')}`);
+                return;
+            }
+            
+            warehouseArea = {
+                coordinates: currentWarehousePoints.map(p => [p.x, p.y])
+            };
+            
+            updateWarehouseUI();
+            
+            // Сброс текущего склада
+            currentWarehousePoints = [];
+            warehouseControls.style.display = 'none';
+            setMode('pan');
+            updateFactoryMap();
+        }
+
+        // Обновление UI склада
+        function updateWarehouseUI() {
+            const container = document.getElementById('warehouseContainer');
+            const coordsContainer = document.getElementById('warehouseCoordsContainer');
+            const statusElement = document.getElementById('warehouseStatus');
+            const coordsElement = document.getElementById('warehouseCoords');
+            
+            if (warehouseArea) {
+                // Показываем контейнер с координатами
+                coordsContainer.style.display = 'block';
+                statusElement.innerHTML = '<span class="text-success">Склад определен</span>';
+                
+                // Очищаем и заполняем координаты
+                coordsElement.innerHTML = '';
+                
+                warehouseArea.coordinates.forEach((point, index) => {
+                    const coordDiv = document.createElement('div');
+                    coordDiv.className = 'coord-pair mb-2';
+                    coordDiv.innerHTML = `
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" class="form-control coord-input warehouse-coord-x" data-point="${index}" placeholder="X" step="0.1" value="${point[0].toFixed(1)}" required>
+                            </div>
+                            <div class="col">
+                                <input type="number" class="form-control coord-input warehouse-coord-y" data-point="${index}" placeholder="Y" step="0.1" value="${point[1].toFixed(1)}" required>
+                            </div>
+                            ${index === 0 ? `
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="addCoordPairToWarehouse()">+</button>
+                            </div>
+                            ` : `
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeCoordPairFromWarehouse(${index})">-</button>
+                            </div>
+                            `}
+                        </div>
+                    `;
+                    coordsElement.appendChild(coordDiv);
+                });
+                
+                // Добавляем обработчики событий для полей ввода координат склада
+                document.querySelectorAll('.warehouse-coord-x, .warehouse-coord-y').forEach(input => {
+                    input.addEventListener('input', handleWarehouseCoordChange);
+                });
+            } else {
+                // Скрываем контейнер с координатами
+                coordsContainer.style.display = 'none';
+                statusElement.innerHTML = '<span class="text-warning">Склад не определен</span>';
+            }
+        }
+
+        // Обработчик изменения координат склада
+        function handleWarehouseCoordChange(event) {
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            const isX = event.target.classList.contains('warehouse-coord-x');
+            
+            if (warehouseArea && warehouseArea.coordinates[pointIndex]) {
+                const oldX = warehouseArea.coordinates[pointIndex][0];
+                const oldY = warehouseArea.coordinates[pointIndex][1];
+                
+                if (isX) {
+                    warehouseArea.coordinates[pointIndex][0] = parseFloat(event.target.value) || 0;
+                } else {
+                    warehouseArea.coordinates[pointIndex][1] = parseFloat(event.target.value) || 0;
+                }
+                
+                // УДАЛЯЕМ ТОННЕЛИ, СВЯЗАННЫЕ СО СКЛАДОМ
+                tunnels = tunnels.filter(tunnel => {
+                    return !(tunnel.startsFrom === 'warehouse' || tunnel.endsAt === 'warehouse');
+                });
+                updateTunnelsUI();
+                
+                // Проверяем, не попали ли точки внутрь измененного склада
+                const warehouseCoords = warehouseArea.coordinates;
+                const pointsInWarehouse = [];
+                
+                // Проверяем базовую точку
+                if (isPointInPolygon(basePoint.coordinates[0], basePoint.coordinates[1], warehouseCoords)) {
+                    pointsInWarehouse.push(`Базовую точку`);
+                }
+                
+                // Проверяем точки погрузки
+                loadingPoints.forEach(point => {
+                    if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                        pointsInWarehouse.push(`Точку погрузки П${point.id}`);
+                    }
+                });
+                
+                // Проверяем точки выгрузки
+                unloadingPoints.forEach(point => {
+                    if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                        pointsInWarehouse.push(`Точку выгрузки В${point.id}`);
+                    }
+                });
+                
+                // Проверяем точки зарядки
+                chargingPoints.forEach(point => {
+                    if (isPointInPolygon(point.coordinates[0], point.coordinates[1], warehouseCoords)) {
+                        pointsInWarehouse.push(`Точку зарядки З${point.id}`);
+                    }
+                });
+                
+                // Проверяем препятствия
+                obstacles.forEach(obstacle => {
+                    if (obstacle.withArea) {
+                        const obstacleCenterX = obstacle.coordinates.reduce((sum, p) => sum + p[0], 0) / obstacle.coordinates.length;
+                        const obstacleCenterY = obstacle.coordinates.reduce((sum, p) => sum + p[1], 0) / obstacle.coordinates.length;
+                        if (isPointInPolygon(obstacleCenterX, obstacleCenterY, warehouseCoords)) {
+                            pointsInWarehouse.push(`Препятствие ${obstacle.id}`);
+                        }
+                    }
+                });
+                
+                // Проверяем, не пересекается ли склад с тоннелями
+                for (let point of warehouseCoords) {
+                    if (isPointNearTunnel(point[0], point[1], 1.5)) {
+                        alert('Склад не может пересекаться с тоннелями!');
+                        // Возвращаем старые значения
+                        if (isX) {
+                            warehouseArea.coordinates[pointIndex][0] = oldX;
+                            event.target.value = oldX.toFixed(1);
+                        } else {
+                            warehouseArea.coordinates[pointIndex][1] = oldY;
+                            event.target.value = oldY.toFixed(1);
+                        }
+                        return;
+                    }
+                }
+                
+                // Проверяем, не пересекается ли склад с препятствиями
+                for (let obstacle of obstacles) {
+                    if (obstacle.withArea) {
+                        // Проверяем каждую точку склада на пересечение с препятствиями
+                        for (let point of warehouseCoords) {
+                            if (isPointInPolygon(point[0], point[1], obstacle.coordinates)) {
+                                alert('Склад не может пересекаться с препятствиями!');
+                                // Возвращаем старые значения
+                                if (isX) {
+                                    warehouseArea.coordinates[pointIndex][0] = oldX;
+                                    event.target.value = oldX.toFixed(1);
+                                } else {
+                                    warehouseArea.coordinates[pointIndex][1] = oldY;
+                                    event.target.value = oldY.toFixed(1);
+                                }
+                                return;
+                            }
+                        }
+                        // Проверяем каждую точку препятствия на пересечение со складом
+                        for (let point of obstacle.coordinates) {
+                            if (isPointInPolygon(point[0], point[1], warehouseCoords)) {
+                                alert('Склад не может пересекаться с препятствиями!');
+                                // Возвращаем старые значения
+                                if (isX) {
+                                    warehouseArea.coordinates[pointIndex][0] = oldX;
+                                    event.target.value = oldX.toFixed(1);
+                                } else {
+                                    warehouseArea.coordinates[pointIndex][1] = oldY;
+                                    event.target.value = oldY.toFixed(1);
+                                }
+                                return;
+                            }
+                        }
+                    } else {
+                        // Проверяем пересечение перегородок со складом
+                        if (intersectsWarehouse(warehouseCoords, true)) {
+                            alert('Склад не может пересекаться с перегородками!');
+                            // Возвращаем старые значения
+                            if (isX) {
+                                warehouseArea.coordinates[pointIndex][0] = oldX;
+                                event.target.value = oldX.toFixed(1);
+                            } else {
+                                warehouseArea.coordinates[pointIndex][1] = oldY;
+                                event.target.value = oldY.toFixed(1);
+                            }
+                            return;
+                        }
+                    }
+                }
+                
+                if (pointsInWarehouse.length > 0) {
+                    alert(`Нельзя изменить склад, чтобы он содержал:\n${pointsInWarehouse.join('\n')}`);
+                    // Возвращаем старые значения
+                    if (isX) {
+                        warehouseArea.coordinates[pointIndex][0] = oldX;
+                        event.target.value = oldX.toFixed(1);
+                    } else {
+                        warehouseArea.coordinates[pointIndex][1] = oldY;
+                        event.target.value = oldY.toFixed(1);
+                    }
+                    return;
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Добавление пары координат к складу
+        function addCoordPairToWarehouse() {
+            if (warehouseArea && warehouseArea.coordinates.length > 0) {
+                const lastCoord = warehouseArea.coordinates[warehouseArea.coordinates.length - 1];
+                warehouseArea.coordinates.push([lastCoord[0] + 1, lastCoord[1] + 1]);
+                updateWarehouseUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление пары координат из склада
+        function removeCoordPairFromWarehouse(coordIndex) {
+            if (warehouseArea && warehouseArea.coordinates.length > 3) {
+                warehouseArea.coordinates.splice(coordIndex, 1);
+                updateWarehouseUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление склада
+        function removeWarehouse() {
+            // УДАЛЯЕМ ТОННЕЛИ, СВЯЗАННЫЕ СО СКЛАДОМ
+            tunnels = tunnels.filter(tunnel => {
+                return !(tunnel.startsFrom === 'warehouse' || tunnel.endsAt === 'warehouse');
+            });
+            updateTunnelsUI();
+            
+            warehouseArea = null;
+            updateWarehouseUI();
+            updateFactoryMap();
+        }
+
+        // Отмена рисования препятствия
+        function cancelObstacle() {
+            currentObstaclePoints = [];
+            obstacleControls.style.display = 'none';
+            setMode('pan');
+            updateFactoryMap();
+        }
+
+        // Отмена рисования тоннеля
+        function cancelTunnel() {
+            currentTunnelPoints = [];
+            tunnelControls.style.display = 'none';
+            setMode('pan');
+            updateFactoryMap();
+        }
+
+        // Отмена рисования склада
+        function cancelWarehouse() {
+            currentWarehousePoints = [];
+            warehouseControls.style.display = 'none';
+            setMode('pan');
+            updateFactoryMap();
+        }
+
+        // Обновление UI тоннелей
+        function updateTunnelsUI() {
+            const container = document.getElementById('tunnelsContainer');
+            container.innerHTML = '';
+            
+            tunnels.forEach((tunnel, index) => {
+                tunnel.id = index + 1;
+                
+                let pointsHTML = '';
+                tunnel.points.forEach((point, pointIndex) => {
+                    pointsHTML += `
+                        <div class="coord-pair mb-2">
+                            <div class="row g-2">
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input tunnel-coord-x" data-tunnel="${index}" data-point="${pointIndex}" placeholder="X" step="0.1" value="${point.x.toFixed(1)}" required>
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input tunnel-coord-y" data-tunnel="${index}" data-point="${pointIndex}" placeholder="Y" step="0.1" value="${point.y.toFixed(1)}" required>
+                                </div>
+                                ${pointIndex === 0 ? `
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-success btn-sm" onclick="addPointToTunnel(${index})">+</button>
+                                </div>
+                                ` : `
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removePointFromTunnel(${index}, ${pointIndex})">-</button>
+                                </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                const tunnelDiv = document.createElement('div');
+                tunnelDiv.className = 'tunnel-item';
+                
+                // Определяем направление тоннеля для отображения
+                let directionLabel = '';
+                if (tunnel.startsFrom === 'warehouse') {
+                    directionLabel = `🏬→П${tunnel.targetLoadingPoint}`;
+                } else {
+                    directionLabel = `🏠→🏬`;
+                }
+                
+                tunnelDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>Тоннель ${tunnel.id} ${directionLabel}</h5>
+                        <button type="button" class="btn delete-btn" onclick="removeTunnel(${index})">🗑️ Удалить</button>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Точки тоннеля</label>
+                            <div class="tunnel-points">
+                                ${pointsHTML}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Тип материала</label>
+                            <input type="text" class="form-control coord-input tunnel-material" data-tunnel="${index}" value="${tunnel.materialType || ''}" placeholder="Введите тип материала" ${tunnel.startsFrom === 'base' ? 'readonly' : ''}>
+                            ${tunnel.startsFrom === 'base' ? '<div class="form-text">Тип материала для тоннелей от базовой точки всегда "Общий"</div>' : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(tunnelDiv);
+            });
+            
+            // Добавляем обработчики событий для полей ввода тоннелей
+            document.querySelectorAll('.tunnel-coord-x, .tunnel-coord-y').forEach(input => {
+                input.addEventListener('input', handleTunnelCoordChange);
+            });
+            
+            document.querySelectorAll('.tunnel-material').forEach(input => {
+                input.addEventListener('input', handleTunnelMaterialChange);
+            });
+        }
+
+        // Обработчик изменения координат тоннелей
+        function handleTunnelCoordChange(event) {
+            const tunnelIndex = parseInt(event.target.getAttribute('data-tunnel'));
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            const isX = event.target.classList.contains('tunnel-coord-x');
+            
+            if (tunnels[tunnelIndex] && tunnels[tunnelIndex].points[pointIndex]) {
+                if (isX) {
+                    tunnels[tunnelIndex].points[pointIndex].x = parseFloat(event.target.value) || 0;
+                } else {
+                    tunnels[tunnelIndex].points[pointIndex].y = parseFloat(event.target.value) || 0;
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Обработчик изменения типа материала тоннеля
+        function handleTunnelMaterialChange(event) {
+            const tunnelIndex = parseInt(event.target.getAttribute('data-tunnel'));
+            
+            if (tunnels[tunnelIndex] && tunnels[tunnelIndex].startsFrom !== 'base') {
+                tunnels[tunnelIndex].materialType = event.target.value;
+                updateFactoryMap();
+            } else if (tunnels[tunnelIndex] && tunnels[tunnelIndex].startsFrom === 'base') {
+                // Для тоннелей от базовой точки всегда "Общий"
+                event.target.value = 'Общий';
+                tunnels[tunnelIndex].materialType = 'Общий';
+            }
+        }
+
+        // Добавление точки к тоннелю
+        function addPointToTunnel(tunnelIndex) {
+            if (tunnels[tunnelIndex] && tunnels[tunnelIndex].points.length > 0) {
+                const lastPoint = tunnels[tunnelIndex].points[tunnels[tunnelIndex].points.length - 1];
+                tunnels[tunnelIndex].points.push({x: lastPoint.x + 1, y: lastPoint.y + 1});
+                updateTunnelsUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление точки из тоннеля
+        function removePointFromTunnel(tunnelIndex, pointIndex) {
+            if (tunnels[tunnelIndex] && tunnels[tunnelIndex].points.length > 2) {
+                tunnels[tunnelIndex].points.splice(pointIndex, 1);
+                updateTunnelsUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление тоннеля
+        function removeTunnel(index) {
+            tunnels.splice(index, 1);
+            updateTunnelsUI();
+            updateFactoryMap();
+        }
+
+        // Обновление UI препятствий
+        function updateObstaclesUI() {
+            const container = document.getElementById('obstaclesContainer');
+            container.innerHTML = '';
+            
+            obstacles.forEach((obstacle, index) => {
+                obstacle.id = index + 1;
+                
+                let coordsHTML = '';
+                obstacle.coordinates.forEach((point, pointIndex) => {
+                    coordsHTML += `
+                        <div class="coord-pair mb-2">
+                            <div class="row g-2">
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input obstacle-coord-x" data-obstacle="${index}" data-point="${pointIndex}" placeholder="X" step="0.1" value="${point[0].toFixed(1)}" required>
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input obstacle-coord-y" data-obstacle="${index}" data-point="${pointIndex}" placeholder="Y" step="0.1" value="${point[1].toFixed(1)}" required>
+                                </div>
+                                ${pointIndex === 0 ? `
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-success btn-sm" onclick="addCoordPairToObstacle(${index})">+</button>
+                                </div>
+                                ` : `
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeCoordPairFromObstacle(${index}, ${pointIndex})">-</button>
+                                </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                const obstacleDiv = document.createElement('div');
+                obstacleDiv.className = 'obstacle-item';
+                obstacleDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>${obstacle.withArea ? 'Препятствие' : 'Перегородка'} ${obstacle.id}</h5>
+                        <button type="button" class="btn delete-btn" onclick="removeObstacle(${index})">🗑️ Удалить</button>
+                    </div>
+                    <div class="obstacle-coords" id="obstacleCoords${obstacle.id}">
+                        ${coordsHTML}
+                    </div>
+                    <div class="warning-message">
+                        ${obstacle.withArea ? 'Препятствие с площадью' : 'Перегородка (ломаная линия)'}
+                    </div>
+                `;
+                container.appendChild(obstacleDiv);
+            });
+            
+            // Добавляем обработчики событий для полей ввода координат препятствий
+            document.querySelectorAll('.obstacle-coord-x, .obstacle-coord-y').forEach(input => {
+                input.addEventListener('input', handleObstacleCoordChange);
+            });
+        }
+
+        // Обработчик изменения координат препятствий
+        function handleObstacleCoordChange(event) {
+            const obstacleIndex = parseInt(event.target.getAttribute('data-obstacle'));
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            const isX = event.target.classList.contains('obstacle-coord-x');
+            
+            if (obstacles[obstacleIndex] && obstacles[obstacleIndex].coordinates[pointIndex]) {
+                const oldX = obstacles[obstacleIndex].coordinates[pointIndex][0];
+                const oldY = obstacles[obstacleIndex].coordinates[pointIndex][1];
+                
+                if (isX) {
+                    obstacles[obstacleIndex].coordinates[pointIndex][0] = parseFloat(event.target.value) || 0;
+                } else {
+                    obstacles[obstacleIndex].coordinates[pointIndex][1] = parseFloat(event.target.value) || 0;
+                }
+                
+                // Для препятствий с площадью проверяем, не попали ли точки внутрь измененного препятствия
+                if (obstacles[obstacleIndex].withArea) {
+                    const obstacleCoords = obstacles[obstacleIndex].coordinates;
+                    const pointsInObstacle = [];
+                    
+                    // Проверяем базовую точку
+                    if (isPointInPolygon(basePoint.coordinates[0], basePoint.coordinates[1], obstacleCoords)) {
+                        pointsInObstacle.push(`Базовую точку`);
+                    }
+                    
+                    // Проверяем точки погрузки
+                    loadingPoints.forEach(point => {
+                        if (isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                            pointsInObstacle.push(`Точку погрузки П${point.id}`);
+                        }
+                    });
+                    
+                    // Проверяем точки выгрузки
+                    unloadingPoints.forEach(point => {
+                        if (isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                            pointsInObstacle.push(`Точку выгрузки В${point.id}`);
+                        }
+                    });
+                    
+                    // Проверяем точки зарядки
+                    chargingPoints.forEach(point => {
+                        if (isPointInPolygon(point.coordinates[0], point.coordinates[1], obstacleCoords)) {
+                            pointsInObstacle.push(`Точку зарядки З${point.id}`);
+                        }
+                    });
+                    
+                    // Проверяем склад
+                    if (warehouseArea) {
+                        const warehouseCenterX = warehouseArea.coordinates.reduce((sum, p) => sum + p[0], 0) / warehouseArea.coordinates.length;
+                        const warehouseCenterY = warehouseArea.coordinates.reduce((sum, p) => sum + p[1], 0) / warehouseArea.coordinates.length;
+                        if (isPointInPolygon(warehouseCenterX, warehouseCenterY, obstacleCoords)) {
+                            pointsInObstacle.push(`Склад`);
+                        }
+                    }
+                    
+                    if (pointsInObstacle.length > 0) {
+                        alert(`Нельзя изменить препятствие, чтобы оно содержало:\n${pointsInObstacle.join('\n')}`);
+                        // Возвращаем старые значения
+                        if (isX) {
+                            obstacles[obstacleIndex].coordinates[pointIndex][0] = oldX;
+                            event.target.value = oldX.toFixed(1);
+                        } else {
+                            obstacles[obstacleIndex].coordinates[pointIndex][1] = oldY;
+                            event.target.value = oldY.toFixed(1);
+                        }
+                        return;
+                    }
+                }
+                
+                // ПРОВЕРКА ПЕРЕСЕЧЕНИЯ СО СКЛАДОМ
+                if (warehouseArea) {
+                    if (obstacles[obstacleIndex].withArea) {
+                        if (intersectsWarehouse(obstacles[obstacleIndex].coordinates, true)) {
+                            alert('Препятствие не должно пересекаться со складом!');
+                            // Возвращаем старые значения
+                            if (isX) {
+                                obstacles[obstacleIndex].coordinates[pointIndex][0] = oldX;
+                                event.target.value = oldX.toFixed(1);
+                            } else {
+                                obstacles[obstacleIndex].coordinates[pointIndex][1] = oldY;
+                                event.target.value = oldY.toFixed(1);
+                            }
+                            return;
+                        }
+                    } else {
+                        // Для перегородок
+                        const points = obstacles[obstacleIndex].coordinates.map(coord => ({x: coord[0], y: coord[1]}));
+                        if (intersectsWarehouse(points, false)) {
+                            alert('Перегородка не должна пересекаться со складом!');
+                            // Возвращаем старые значения
+                            if (isX) {
+                                obstacles[obstacleIndex].coordinates[pointIndex][0] = oldX;
+                                event.target.value = oldX.toFixed(1);
+                            } else {
+                                obstacles[obstacleIndex].coordinates[pointIndex][1] = oldY;
+                                event.target.value = oldY.toFixed(1);
+                            }
+                            return;
+                        }
+                    }
+                }
+                
+                // Проверяем, не пересекается ли препятствие с тоннелями
+                for (let point of obstacles[obstacleIndex].coordinates) {
+                    if (isPointNearTunnel(point[0], point[1], 1.5)) {
+                        alert('Препятствие не может пересекаться с тоннелями!');
+                        // Возвращаем старые значения
+                        if (isX) {
+                            obstacles[obstacleIndex].coordinates[pointIndex][0] = oldX;
+                            event.target.value = oldX.toFixed(1);
+                        } else {
+                            obstacles[obstacleIndex].coordinates[pointIndex][1] = oldY;
+                            event.target.value = oldY.toFixed(1);
+                        }
+                        return;
+                    }
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Обновление UI точек погрузки
+        function updateLoadingPointsUI() {
+            const container = document.getElementById('loadingPointsContainer');
+            container.innerHTML = '';
+            
+            loadingPoints.forEach((point, index) => {
+                point.id = index + 1;
+                
+                const pointDiv = document.createElement('div');
+                pointDiv.className = 'point-item';
+                pointDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>Точка погрузки ${point.id}</h5>
+                        <button type="button" class="btn delete-btn" onclick="removeLoadingPoint(${index})">🗑️ Удалить</button>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Координаты</label>
+                            <div class="row g-2">
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input loading-coord-x" data-point="${index}" placeholder="X" step="0.1" value="${point.coordinates[0].toFixed(1)}" required>
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input loading-coord-y" data-point="${index}" placeholder="Y" step="0.1" value="${point.coordinates[1].toFixed(1)}" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Максимальное количество ячеек </label>
+                            <input type="number" class="form-control coord-input loading-weight" data-point="${index}" step="0.1" value="${point.totalWeight}" placeholder="Введите вес">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Вес единицы (кг)</label>
+                            <input type="number" class="form-control coord-input loading-unit-weight" data-point="${index}" step="0.1" value="${point.unitWeight}" placeholder="Введите вес">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Тип груза</label>
+                            <input type="text" class="form-control coord-input loading-cargo-type" data-point="${index}" value="${point.cargoType}" placeholder="Введите тип">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(pointDiv);
+            });
+            
+            // Добавляем обработчики событий для полей ввода точек погрузки
+            document.querySelectorAll('.loading-coord-x, .loading-coord-y').forEach(input => {
+                input.addEventListener('input', handleLoadingPointChange);
+            });
+            document.querySelectorAll('.loading-weight, .loading-unit-weight, .loading-cargo-type').forEach(input => {
+                input.addEventListener('input', handleLoadingPointChange);
+            });
+        }
+
+        // Обработчик изменения данных точек погрузки
+        function handleLoadingPointChange(event) {
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            
+            if (loadingPoints[pointIndex]) {
+                const oldX = loadingPoints[pointIndex].coordinates[0];
+                const oldY = loadingPoints[pointIndex].coordinates[1];
+                
+                if (event.target.classList.contains('loading-coord-x')) {
+                    loadingPoints[pointIndex].coordinates[0] = parseFloat(event.target.value) || 0;
+                } else if (event.target.classList.contains('loading-coord-y')) {
+                    loadingPoints[pointIndex].coordinates[1] = parseFloat(event.target.value) || 0;
+                } else if (event.target.classList.contains('loading-weight')) {
+                    loadingPoints[pointIndex].totalWeight = event.target.value;
+                } else if (event.target.classList.contains('loading-unit-weight')) {
+                    loadingPoints[pointIndex].unitWeight = event.target.value;
+                } else if (event.target.classList.contains('loading-cargo-type')) {
+                    loadingPoints[pointIndex].cargoType = event.target.value;
+                    
+                    // Обновляем тип материала в связанных тоннелях (ИСПРАВЛЕННЫЙ КОД)
+                    tunnels.forEach(tunnel => {
+                        if (tunnel.targetLoadingPoint === loadingPoints[pointIndex].id) {
+                            tunnel.materialType = event.target.value;
+                        }
+                    });
+                    updateTunnelsUI();
+                }
+                
+                // Проверяем, не попала ли точка внутрь препятствия или склада (только для координат)
+                if (event.target.classList.contains('loading-coord-x') || event.target.classList.contains('loading-coord-y')) {
+                    const newX = loadingPoints[pointIndex].coordinates[0];
+                    const newY = loadingPoints[pointIndex].coordinates[1];
+                    
+                    if (isPointInAnyObstacle(newX, newY) || (warehouseArea && isPointInPolygon(newX, newY, warehouseArea.coordinates))) {
+                        alert('Точка не может находиться внутри препятствия или склада!');
+                        // Возвращаем старые значения
+                        loadingPoints[pointIndex].coordinates[0] = oldX;
+                        loadingPoints[pointIndex].coordinates[1] = oldY;
+                        event.target.value = event.target.classList.contains('loading-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                        return;
+                    }
+                    
+                    // Проверяем, не попала ли точка на тоннель
+                    if (isPointNearTunnel(newX, newY, 1.5)) {
+                        alert('Точка не может находиться на тоннеле!');
+                        // Возвращаем старые значения
+                        loadingPoints[pointIndex].coordinates[0] = oldX;
+                        loadingPoints[pointIndex].coordinates[1] = oldY;
+                        event.target.value = event.target.classList.contains('loading-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                        return;
+                    }
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Обновление UI точек выгрузки
+        function updateUnloadingPointsUI() {
+            const container = document.getElementById('unloadingPointsContainer');
+            container.innerHTML = '';
+            
+            unloadingPoints.forEach((point, index) => {
+                point.id = index + 1;
+                
+                let requirementsHTML = '';
+                point.requirements.forEach((req, reqIndex) => {
+                    requirementsHTML += `
+                        <div class="requirement-item">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6>Требование ${reqIndex + 1}</h6>
+                                ${reqIndex > 0 ? `
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeUnloadingRequirement(${index}, ${reqIndex})">-</button>
+                                ` : ''}
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Максимум приёма (кг)</label>
+                                    <input type="number" class="form-control coord-input unloading-max-capacity" data-point="${index}" data-requirement="${reqIndex}" step="0.1" value="${req.maxCapacity}" placeholder="Введите максимум">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Тип груза</label>
+                                    <input type="text" class="form-control coord-input unloading-cargo-type" data-point="${index}" data-requirement="${reqIndex}" value="${req.cargoType}" placeholder="Введите тип">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Общий вес доставки (кг)</label>
+                                    <input type="number" class="form-control coord-input unloading-total-weight" data-point="${index}" data-requirement="${reqIndex}" step="0.1" value="${req.totalWeight}" placeholder="Введите вес">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                const pointDiv = document.createElement('div');
+                pointDiv.className = 'point-item';
+                pointDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>Точка выгрузки ${point.id}</h5>
+                        <button type="button" class="btn delete-btn" onclick="removeUnloadingPoint(${index})">🗑️ Удалить</button>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Координаты</label>
+                            <div class="row g-2">
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input unloading-coord-x" data-point="${index}" placeholder="X" step="0.1" value="${point.coordinates[0].toFixed(1)}" required>
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input unloading-coord-y" data-point="${index}" placeholder="Y" step="0.1" value="${point.coordinates[1].toFixed(1)}" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label">Требования по грузам</label>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="addUnloadingRequirement(${index})">+ Добавить требование</button>
+                            </div>
+                            <div class="unloading-requirements">
+                                ${requirementsHTML}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(pointDiv);
+            });
+            
+            // Добавляем обработчики событий для полей ввода точек выгрузки
+            document.querySelectorAll('.unloading-coord-x, .unloading-coord-y').forEach(input => {
+                input.addEventListener('input', handleUnloadingPointChange);
+            });
+            document.querySelectorAll('.unloading-max-capacity, .unloading-cargo-type, .unloading-total-weight').forEach(input => {
+                input.addEventListener('input', handleUnloadingRequirementChange);
+            });
+        }
+
+        // Обработчик изменения данных точек выгрузки
+        function handleUnloadingPointChange(event) {
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            
+            if (unloadingPoints[pointIndex]) {
+                const oldX = unloadingPoints[pointIndex].coordinates[0];
+                const oldY = unloadingPoints[pointIndex].coordinates[1];
+                
+                if (event.target.classList.contains('unloading-coord-x')) {
+                    unloadingPoints[pointIndex].coordinates[0] = parseFloat(event.target.value) || 0;
+                } else if (event.target.classList.contains('unloading-coord-y')) {
+                    unloadingPoints[pointIndex].coordinates[1] = parseFloat(event.target.value) || 0;
+                }
+                
+                // Проверяем, не попала ли точка внутрь препятствия или склада
+                const newX = unloadingPoints[pointIndex].coordinates[0];
+                const newY = unloadingPoints[pointIndex].coordinates[1];
+                
+                if (isPointInAnyObstacle(newX, newY) || (warehouseArea && isPointInPolygon(newX, newY, warehouseArea.coordinates))) {
+                    alert('Точка не может находиться внутри препятствия или склада!');
+                    // Возвращаем старые значения
+                    unloadingPoints[pointIndex].coordinates[0] = oldX;
+                    unloadingPoints[pointIndex].coordinates[1] = oldY;
+                    event.target.value = event.target.classList.contains('unloading-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                    return;
+                }
+                
+                // Проверяем, не попала ли точка на тоннель
+                if (isPointNearTunnel(newX, newY, 1.5)) {
+                    alert('Точка не может находиться на тоннеле!');
+                    // Возвращаем старые значения
+                    unloadingPoints[pointIndex].coordinates[0] = oldX;
+                    unloadingPoints[pointIndex].coordinates[1] = oldY;
+                    event.target.value = event.target.classList.contains('unloading-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                    return;
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Обработчик изменения требований точек выгрузки
+        function handleUnloadingRequirementChange(event) {
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            const requirementIndex = parseInt(event.target.getAttribute('data-requirement'));
+            
+            if (unloadingPoints[pointIndex] && unloadingPoints[pointIndex].requirements[requirementIndex]) {
+                if (event.target.classList.contains('unloading-max-capacity')) {
+                    unloadingPoints[pointIndex].requirements[requirementIndex].maxCapacity = event.target.value;
+                } else if (event.target.classList.contains('unloading-cargo-type')) {
+                    unloadingPoints[pointIndex].requirements[requirementIndex].cargoType = event.target.value;
+                } else if (event.target.classList.contains('unloading-total-weight')) {
+                    unloadingPoints[pointIndex].requirements[requirementIndex].totalWeight = event.target.value;
+                }
+            }
+        }
+
+        // Добавление требования к точке выгрузки
+        function addUnloadingRequirement(pointIndex) {
+            if (unloadingPoints[pointIndex]) {
+                unloadingPoints[pointIndex].requirements.push({
+                    maxCapacity: '',
+                    cargoType: '',
+                    totalWeight: ''
+                });
+                updateUnloadingPointsUI();
+            }
+        }
+
+        // Удаление требования из точки выгрузки
+        function removeUnloadingRequirement(pointIndex, requirementIndex) {
+            if (unloadingPoints[pointIndex] && unloadingPoints[pointIndex].requirements.length > 1) {
+                unloadingPoints[pointIndex].requirements.splice(requirementIndex, 1);
+                updateUnloadingPointsUI();
+            }
+        }
+
+        // Обновление UI точек зарядки
+        function updateChargingPointsUI() {
+            const container = document.getElementById('chargingPointsContainer');
+            container.innerHTML = '';
+            
+            chargingPoints.forEach((point, index) => {
+                point.id = index + 1;
+                
+                const pointDiv = document.createElement('div');
+                pointDiv.className = 'point-item';
+                pointDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5>Точка зарядки ${point.id}</h5>
+                        <button type="button" class="btn delete-btn" onclick="removeChargingPoint(${index})">🗑️ Удалить</button>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Координаты</label>
+                            <div class="row g-2">
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input charging-coord-x" data-point="${index}" placeholder="X" step="0.1" value="${point.coordinates[0].toFixed(1)}" required>
+                                </div>
+                                <div class="col">
+                                    <input type="number" class="form-control coord-input charging-coord-y" data-point="${index}" placeholder="Y" step="0.1" value="${point.coordinates[1].toFixed(1)}" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Количество зарядных мест</label>
+                            <input type="number" class="form-control coord-input charging-places" data-point="${index}" value="${point.chargingPlaces || ''}" placeholder="Введите количество">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(pointDiv);
+            });
+            
+            // Добавляем обработчики событий для полей ввода точек зарядки
+            document.querySelectorAll('.charging-coord-x, .charging-coord-y, .charging-places').forEach(input => {
+                input.addEventListener('input', handleChargingPointChange);
+            });
+        }
+
+        // Обработчик изменения данных точек зарядки
+        function handleChargingPointChange(event) {
+            const pointIndex = parseInt(event.target.getAttribute('data-point'));
+            
+            if (chargingPoints[pointIndex]) {
+                const oldX = chargingPoints[pointIndex].coordinates[0];
+                const oldY = chargingPoints[pointIndex].coordinates[1];
+                
+                if (event.target.classList.contains('charging-coord-x')) {
+                    chargingPoints[pointIndex].coordinates[0] = parseFloat(event.target.value) || 0;
+                } else if (event.target.classList.contains('charging-coord-y')) {
+                    chargingPoints[pointIndex].coordinates[1] = parseFloat(event.target.value) || 0;
+                } else if (event.target.classList.contains('charging-places')) {
+                    chargingPoints[pointIndex].chargingPlaces = event.target.value;
+                }
+                
+                // Проверяем, не попала ли точка внутрь препятствия или склада (только для координат)
+                if (event.target.classList.contains('charging-coord-x') || event.target.classList.contains('charging-coord-y')) {
+                    const newX = chargingPoints[pointIndex].coordinates[0];
+                    const newY = chargingPoints[pointIndex].coordinates[1];
+                    
+                    if (isPointInAnyObstacle(newX, newY) || (warehouseArea && isPointInPolygon(newX, newY, warehouseArea.coordinates))) {
+                        alert('Точка не может находиться внутри препятствия или склада!');
+                        // Возвращаем старые значения
+                        chargingPoints[pointIndex].coordinates[0] = oldX;
+                        chargingPoints[pointIndex].coordinates[1] = oldY;
+                        event.target.value = event.target.classList.contains('charging-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                        return;
+                    }
+                    
+                    // Проверяем, не попала ли точка на тоннель
+                    if (isPointNearTunnel(newX, newY, 1.5)) {
+                        alert('Точка не может находиться на тоннеле!');
+                        // Возвращаем старые значения
+                        chargingPoints[pointIndex].coordinates[0] = oldX;
+                        chargingPoints[pointIndex].coordinates[1] = oldY;
+                        event.target.value = event.target.classList.contains('charging-coord-x') ? oldX.toFixed(1) : oldY.toFixed(1);
+                        return;
+                    }
+                }
+                
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление препятствия
+        function removeObstacle(index) {
+            obstacles.splice(index, 1);
+            updateObstaclesUI();
+            updateFactoryMap();
+        }
+
+        // Удаление точки погрузки
+        function removeLoadingPoint(index) {
+            // Удаляем связанные тоннели
+            tunnels = tunnels.filter(tunnel => tunnel.targetLoadingPoint !== loadingPoints[index].id);
+            updateTunnelsUI();
+            
+            loadingPoints.splice(index, 1);
+            updateLoadingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Удаление точки выгрузки
+        function removeUnloadingPoint(index) {
+            unloadingPoints.splice(index, 1);
+            updateUnloadingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Удаление точки зарядки
+        function removeChargingPoint(index) {
+            chargingPoints.splice(index, 1);
+            updateChargingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Добавление пары координат к препятствию
+        function addCoordPairToObstacle(obstacleIndex) {
+            if (obstacles[obstacleIndex] && obstacles[obstacleIndex].coordinates.length > 0) {
+                const lastCoord = obstacles[obstacleIndex].coordinates[obstacles[obstacleIndex].coordinates.length - 1];
+                obstacles[obstacleIndex].coordinates.push([lastCoord[0] + 1, lastCoord[1] + 1]);
+                updateObstaclesUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Удаление пары координат из препятствия
+        function removeCoordPairFromObstacle(obstacleIndex, coordIndex) {
+            if (obstacles[obstacleIndex] && obstacles[obstacleIndex].coordinates.length > 3) {
+                obstacles[obstacleIndex].coordinates.splice(coordIndex, 1);
+                updateObstaclesUI();
+                updateFactoryMap();
+            }
+        }
+
+        // Очистка всей карты
+        function clearAll() {
+            obstacles = [];
+            loadingPoints = [];
+            unloadingPoints = [];
+            chargingPoints = [];
+            tunnels = [];
+            warehouseArea = null;
+            basePoint = { coordinates: [5, 5] };
+            currentObstaclePoints = [];
+            currentTunnelPoints = [];
+            currentWarehousePoints = [];
+            userZoom = 1;
+            offsetX = 0;
+            offsetY = 0;
+            updateZoomDisplay();
+            updateObstaclesUI();
+            updateLoadingPointsUI();
+            updateUnloadingPointsUI();
+            updateChargingPointsUI();
+            updateTunnelsUI();
+            updateWarehouseUI();
+            updateFactoryMap();
+            
+            // Сброс полей базовой точки
+            document.querySelector('.base-coord-x').value = "5";
+            document.querySelector('.base-coord-y').value = "5";
+        }
+
+        // Отрисовка сетки
+        function drawGrid() {
+            const scale = baseScale * userZoom;
+            
+            // Автоматически подбираем размер сетки в зависимости от масштаба
+            let dynamicGridSize = gridSize;
+            if (roomLength > 100 || roomWidth > 100) {
+                dynamicGridSize = 10;
+            }
+            if (roomLength > 200 || roomWidth > 200) {
+                dynamicGridSize = 20;
+            }
+            if (roomLength > 500 || roomWidth > 500) {
+                dynamicGridSize = 50;
+            }
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            
+            // Вертикальные линии
+            for (let x = 0; x <= roomLength; x += dynamicGridSize) {
+                ctx.beginPath();
+                ctx.moveTo(offsetX + x * scale, offsetY);
+                ctx.lineTo(offsetX + x * scale, offsetY + roomWidth * scale);
+                ctx.stroke();
+                
+                // Подписи координат (только если масштаб достаточный)
+                if (userZoom > 0.5) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.font = '10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(x, offsetX + x * scale, offsetY + roomWidth * scale + 15);
+                }
+            }
+            
+            // Горизонтальные линии
+            for (let y = 0; y <= roomWidth; y += dynamicGridSize) {
+                ctx.beginPath();
+                ctx.moveTo(offsetX, offsetY + y * scale);
+                ctx.lineTo(offsetX + roomLength * scale, offsetY + y * scale);
+                ctx.stroke();
+                
+                // Подписи координат (только если масштаб достаточный)
+                if (userZoom > 0.5) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.font = '10px Arial';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(y, offsetX - 5, offsetY + (roomWidth - y) * scale);
+                }
+            }
+        }
+
+        // Обновление карты цеха
+        function updateFactoryMap() {
+            // Получаем актуальные размеры цеха
+            roomLength = parseFloat(document.getElementById('length').value) || 50;
+            roomWidth = parseFloat(document.getElementById('width').value) || 30;
+            
+            // Очищаем canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Рассчитываем базовый масштаб
+            baseScale = Math.min(
+                (canvas.width - 40) / roomLength,
+                (canvas.height - 40) / roomWidth
+            );
+            
+            const scale = baseScale * userZoom;
+            
+            // Если offsetX и offsetY не установлены, центрируем карту
+            if (offsetX === 0 && offsetY === 0) {
+                offsetX = (canvas.width - roomLength * scale) / 2;
+                offsetY = (canvas.height - roomWidth * scale) / 2;
+            }
+            
+            // Рисуем сетку
+            drawGrid();
+            
+            // Рисуем контур цеха
+            ctx.strokeStyle = '#00b4d8';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(offsetX, offsetY, roomLength * scale, roomWidth * scale);
+            
+            // Рисуем склад
+            drawWarehouse();
+            
+            // Рисуем базовую точку
+            drawBasePoint();
+            
+            // Рисуем препятствия
+            drawObstacles();
+            
+            // Рисуем тоннели
+            drawTunnels();
+            
+            // Рисуем точки погрузки
+            drawLoadingPoints();
+            
+            // Рисуем точки выгрузки
+            drawUnloadingPoints();
+            
+            // Рисуем точки зарядки
+            drawChargingPoints();
+            
+            // Рисуем текущее препятствие (если рисуем)
+            if (currentMode === 'obstacle' && currentObstaclePoints.length > 0) {
+                drawCurrentObstacle();
+            }
+            
+            // Рисуем текущий тоннель (если рисуем)
+            if (currentMode === 'tunnel' && currentTunnelPoints.length > 0) {
+                drawCurrentTunnel();
+            }
+            
+            // Рисуем текущий склад (если рисуем)
+            if (currentMode === 'warehouse' && currentWarehousePoints.length > 0) {
+                drawCurrentWarehouse();
+            }
+        }
+
+        // Рисуем склад
+        function drawWarehouse() {
+            const scale = baseScale * userZoom;
+            
+            if (warehouseArea && warehouseArea.coordinates) {
+                // Рисуем область склада
+                ctx.fillStyle = 'rgba(102, 170, 255, 0.3)';
+                ctx.strokeStyle = '#66aaff';
+                ctx.lineWidth = 3;
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                    offsetX + warehouseArea.coordinates[0][0] * scale,
+                    offsetY + (roomWidth - warehouseArea.coordinates[0][1]) * scale
+                );
+                
+                for (let i = 1; i < warehouseArea.coordinates.length; i++) {
+                    ctx.lineTo(
+                        offsetX + warehouseArea.coordinates[i][0] * scale,
+                        offsetY + (roomWidth - warehouseArea.coordinates[i][1]) * scale
+                    );
+                }
+                
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Подпись склада
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                const centerX = warehouseArea.coordinates.reduce((sum, p) => sum + p[0], 0) / warehouseArea.coordinates.length;
+                const centerY = warehouseArea.coordinates.reduce((sum, p) => sum + p[1], 0) / warehouseArea.coordinates.length;
+                ctx.fillText(
+                    'СКЛАД',
+                    offsetX + centerX * scale,
+                    offsetY + (roomWidth - centerY) * scale
+                );
+            }
+        }
+
+        // Рисуем текущий склад (при создании)
+        function drawCurrentWarehouse() {
+            const scale = baseScale * userZoom;
+            
+            if (currentWarehousePoints.length === 0) return;
+            
+            // Рисуем линии между точками
+            ctx.strokeStyle = '#66aaff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(
+                offsetX + currentWarehousePoints[0].x * scale,
+                offsetY + (roomWidth - currentWarehousePoints[0].y) * scale
+            );
+            
+            for (let i = 1; i < currentWarehousePoints.length; i++) {
+                ctx.lineTo(
+                    offsetX + currentWarehousePoints[i].x * scale,
+                    offsetY + (roomWidth - currentWarehousePoints[i].y) * scale
+                );
+            }
+            
+            // Замыкаем полигон
+            if (currentWarehousePoints.length > 2) {
+                ctx.lineTo(
+                    offsetX + currentWarehousePoints[0].x * scale,
+                    offsetY + (roomWidth - currentWarehousePoints[0].y) * scale
+                );
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Рисуем точки вершин
+            ctx.fillStyle = '#66aaff';
+            currentWarehousePoints.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + point.x * scale,
+                    offsetY + (roomWidth - point.y) * scale,
+                    5, 0, Math.PI * 2
+                );
+                ctx.fill();
+            });
+        }
+
+        // Рисуем базовую точку
+        function drawBasePoint() {
+            const scale = baseScale * userZoom;
+            
+            if (basePoint && basePoint.coordinates) {
+                const x = basePoint.coordinates[0];
+                const y = basePoint.coordinates[1];
+                
+                // Рисуем дом (базовую точку)
+                ctx.fillStyle = '#ff6b6b';
+                ctx.strokeStyle = '#ff4757';
+                ctx.lineWidth = 2;
+                
+                // Основание дома
+                ctx.fillRect(
+                    offsetX + x * scale - 8,
+                    offsetY + (roomWidth - y) * scale - 8,
+                    16, 16
+                );
+                
+                // Крыша
+                ctx.beginPath();
+                ctx.moveTo(offsetX + x * scale - 10, offsetY + (roomWidth - y) * scale - 8);
+                ctx.lineTo(offsetX + x * scale, offsetY + (roomWidth - y) * scale - 15);
+                ctx.lineTo(offsetX + x * scale + 10, offsetY + (roomWidth - y) * scale - 8);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Обводка
+                ctx.strokeRect(
+                    offsetX + x * scale - 8,
+                    offsetY + (roomWidth - y) * scale - 8,
+                    16, 16
+                );
+                
+                // Подпись (только если масштаб достаточный)
+                if (userZoom > 0.3) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(
+                        `База`,
+                        offsetX + x * scale,
+                        offsetY + (roomWidth - y) * scale - 20
+                    );
+                }
+            }
+        }
+
+        // Рисуем препятствия
+        function drawObstacles() {
+            const scale = baseScale * userZoom;
+            
+            obstacles.forEach(obstacle => {
+                if (obstacle.withArea) {
+                    // Препятствия с площадью - закрашенные многоугольники
+                    if (obstacle.coordinates.length >= 3) {
+                        ctx.fillStyle = 'rgba(255, 204, 0, 0.5)';
+                        ctx.strokeStyle = '#ff9900';
+                        ctx.lineWidth = 2;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(
+                            offsetX + obstacle.coordinates[0][0] * scale,
+                            offsetY + (roomWidth - obstacle.coordinates[0][1]) * scale
+                        );
+                        
+                        for (let i = 1; i < obstacle.coordinates.length; i++) {
+                            ctx.lineTo(
+                                offsetX + obstacle.coordinates[i][0] * scale,
+                                offsetY + (roomWidth - obstacle.coordinates[i][1]) * scale
+                            );
+                        }
+                        
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+                        
+                        // Подпись препятствия (только если масштаб достаточный)
+                        if (userZoom > 0.3) {
+                            const centerX = obstacle.coordinates.reduce((sum, p) => sum + p[0], 0) / obstacle.coordinates.length;
+                            const centerY = obstacle.coordinates.reduce((sum, p) => sum + p[1], 0) / obstacle.coordinates.length;
+                            
+                            ctx.fillStyle = 'black';
+                            ctx.font = 'bold 12px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(
+                                `Пр${obstacle.id}`,
+                                offsetX + centerX * scale,
+                                offsetY + (roomWidth - centerY) * scale
+                            );
+                        }
+                    }
+                } else {
+                    // Перегородки - ломаные линии без замыкания
+                    if (obstacle.coordinates.length >= 2) {
+                        ctx.strokeStyle = '#ff6600';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([]);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(
+                            offsetX + obstacle.coordinates[0][0] * scale,
+                            offsetY + (roomWidth - obstacle.coordinates[0][1]) * scale
+                        );
+                        
+                        for (let i = 1; i < obstacle.coordinates.length; i++) {
+                            ctx.lineTo(
+                                offsetX + obstacle.coordinates[i][0] * scale,
+                                offsetY + (roomWidth - obstacle.coordinates[i][1]) * scale
+                            );
+                        }
+                        
+                        ctx.stroke();
+                        
+                        // Подпись перегородки (в середине первого сегмента, только если масштаб достаточный)
+                        if (userZoom > 0.3 && obstacle.coordinates.length >= 2) {
+                            const midX = (obstacle.coordinates[0][0] + obstacle.coordinates[1][0]) / 2;
+                            const midY = (obstacle.coordinates[0][1] + obstacle.coordinates[1][1]) / 2;
+                            
+                            ctx.fillStyle = 'white';
+                            ctx.font = 'bold 12px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(
+                                `Пер${obstacle.id}`,
+                                offsetX + midX * scale,
+                                offsetY + (roomWidth - midY) * scale
+                            );
+                        }
+                        
+                        // Рисуем точки вершин для перегородок (только если масштаб достаточный)
+                        if (userZoom > 0.5) {
+                            ctx.fillStyle = '#ff6600';
+                            obstacle.coordinates.forEach(point => {
+                                ctx.beginPath();
+                                ctx.arc(
+                                    offsetX + point[0] * scale,
+                                    offsetY + (roomWidth - point[1]) * scale,
+                                    4, 0, Math.PI * 2
+                                );
+                                ctx.fill();
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Рисуем текущее препятствие (при создании)
+        function drawCurrentObstacle() {
+            const scale = baseScale * userZoom;
+            
+            if (currentObstaclePoints.length === 0) return;
+            
+            // Рисуем линии между точками
+            ctx.strokeStyle = '#ff9900';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(
+                offsetX + currentObstaclePoints[0].x * scale,
+                offsetY + (roomWidth - currentObstaclePoints[0].y) * scale
+            );
+            
+            for (let i = 1; i < currentObstaclePoints.length; i++) {
+                ctx.lineTo(
+                    offsetX + currentObstaclePoints[i].x * scale,
+                    offsetY + (roomWidth - currentObstaclePoints[i].y) * scale
+                );
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Рисуем точки вершин
+            ctx.fillStyle = '#ff9900';
+            currentObstaclePoints.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + point.x * scale,
+                    offsetY + (roomWidth - point.y) * scale,
+                    5, 0, Math.PI * 2
+                );
+                ctx.fill();
+            });
+        }
+
+        // Рисуем тоннели
+        function drawTunnels() {
+            const scale = baseScale * userZoom;
+            
+            tunnels.forEach(tunnel => {
+                if (tunnel.points.length < 2) return;
+                
+                // Рисуем линию тоннеля - УМЕНЬШЕННАЯ ШИРИНА
+                ctx.strokeStyle = '#9966ff';
+                ctx.lineWidth = 4; // Уменьшено с 8 до 4
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                    offsetX + tunnel.points[0].x * scale,
+                    offsetY + (roomWidth - tunnel.points[0].y) * scale
+                );
+                
+                for (let i = 1; i < tunnel.points.length; i++) {
+                    ctx.lineTo(
+                        offsetX + tunnel.points[i].x * scale,
+                        offsetY + (roomWidth - tunnel.points[i].y) * scale
+                    );
+                }
+                
+                ctx.stroke();
+                
+                // Рисуем стрелочки внутри тоннеля
+                drawTunnelArrows(tunnel, scale);
+                
+                // Подпись тоннеля (только если масштаб достаточный)
+                if (userZoom > 0.3) {
+                    const midIndex = Math.floor(tunnel.points.length / 2);
+                    const midPoint = tunnel.points[midIndex];
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    
+                    let directionLabel = '';
+                    if (tunnel.startsFrom === 'warehouse') {
+                        directionLabel = `Т${tunnel.id}🏬→П${tunnel.targetLoadingPoint}`;
+                    } else {
+                        directionLabel = `Т${tunnel.id}🏠→🏬`;
+                    }
+                    
+                    ctx.fillText(
+                        directionLabel,
+                        offsetX + midPoint.x * scale,
+                        offsetY + (roomWidth - midPoint.y) * scale - 15
+                    );
+                }
+            });
+        }
+
+        // Рисуем стрелочки в тоннеле
+        function drawTunnelArrows(tunnel, scale) {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#ffffff';
+            
+            // Рисуем стрелочки вдоль тоннеля
+            for (let i = 0; i < tunnel.points.length - 1; i++) {
+                const start = tunnel.points[i];
+                const end = tunnel.points[i + 1];
+                
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const unitDx = dx / length;
+                const unitDy = dy / length;
+                
+                // Рисуем несколько стрелочек на каждом сегменте
+                const arrowCount = Math.floor(length / 5);
+                for (let j = 0; j < arrowCount; j++) {
+                    const t = (j + tunnelAnimationOffset) / arrowCount;
+                    const arrowX = start.x + dx * t;
+                    const arrowY = start.y + dy * t;
+                    
+                    drawArrow(
+                        offsetX + arrowX * scale,
+                        offsetY + (roomWidth - arrowY) * scale,
+                        unitDx, unitDy,
+                        6 * scale / 2.5 // Уменьшена длина стрелки в 2.5 раза
+                    );
+                }
+            }
+        }
+
+        // Рисуем стрелку (УМЕНЬШЕННЫЙ РАЗМЕР - еще в 3 раза)
+        function drawArrow(x, y, dx, dy, length) {
+            const headLength = length * 0.133; // Уменьшено еще в 3 раза (0.4/3)
+            const headWidth = length * 0.1;    // Уменьшено еще в 3 раза (0.3/3)
+            
+            // Линия стрелки - уменьшена длина
+            const arrowLength = length * 0.6; // Уменьшаем длину стрелки, чтобы она не выходит за границы тоннеля
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + dx * arrowLength, y - dy * arrowLength);
+            ctx.stroke();
+            
+            // Голова стрелки (уменьшенный треугольник)
+            ctx.beginPath();
+            ctx.moveTo(x + dx * arrowLength, y - dy * arrowLength);
+            ctx.lineTo(
+                x + dx * (arrowLength - headLength) - dy * headWidth,
+                y - dy * (arrowLength - headLength) - dx * headWidth
+            );
+            ctx.lineTo(
+                x + dx * (arrowLength - headLength) + dy * headWidth,
+                y - dy * (arrowLength - headLength) + dx * headWidth
+            );
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Рисуем текущий тоннель (при создании)
+        function drawCurrentTunnel() {
+            const scale = baseScale * userZoom;
+            
+            if (currentTunnelPoints.length === 0) return;
+            
+            // Рисуем линии между точками
+            ctx.strokeStyle = '#9966ff';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(
+                offsetX + currentTunnelPoints[0].x * scale,
+                offsetY + (roomWidth - currentTunnelPoints[0].y) * scale
+            );
+            
+            for (let i = 1; i < currentTunnelPoints.length; i++) {
+                ctx.lineTo(
+                    offsetX + currentTunnelPoints[i].x * scale,
+                    offsetY + (roomWidth - currentTunnelPoints[i].y) * scale
+                );
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Рисуем точки вершин
+            ctx.fillStyle = '#9966ff';
+            currentTunnelPoints.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + point.x * scale,
+                    offsetY + (roomWidth - point.y) * scale,
+                    5, 0, Math.PI * 2
+                );
+                ctx.fill();
+            });
+        }
+
+        // Рисуем точки погрузки
+        function drawLoadingPoints() {
+            const scale = baseScale * userZoom;
+            
+            ctx.fillStyle = '#ff4444';
+            ctx.strokeStyle = '#cc0000';
+            ctx.lineWidth = 2;
+            
+            loadingPoints.forEach(point => {
+                const x = point.coordinates[0];
+                const y = point.coordinates[1];
+                
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + x * scale,
+                    offsetY + (roomWidth - y) * scale,
+                    10, 0, Math.PI * 2
+                );
+                ctx.fill();
+                ctx.stroke();
+                
+                // Подпись (только если масштаб достаточный)
+                if (userZoom > 0.3) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(
+                        `П${point.id}`,
+                        offsetX + x * scale,
+                        offsetY + (roomWidth - y) * scale - 15
+                    );
+                    ctx.fillStyle = '#ff4444';
+                }
+            });
+        }
+
+        // Рисуем точки выгрузки
+        function drawUnloadingPoints() {
+            const scale = baseScale * userZoom;
+            
+            ctx.fillStyle = '#4444ff';
+            ctx.strokeStyle = '#0000cc';
+            ctx.lineWidth = 2;
+            
+            unloadingPoints.forEach(point => {
+                const x = point.coordinates[0];
+                const y = point.coordinates[1];
+                
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + x * scale,
+                    offsetY + (roomWidth - y) * scale,
+                    10, 0, Math.PI * 2
+                );
+                ctx.fill();
+                ctx.stroke();
+                
+                // Подпись (только если масштаб достаточный)
+                if (userZoom > 0.3) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(
+                        `В${point.id}`,
+                        offsetX + x * scale,
+                        offsetY + (roomWidth - y) * scale - 15
+                    );
+                    ctx.fillStyle = '#4444ff';
+                }
+            });
+        }
+
+        // Рисуем точки зарядки
+        function drawChargingPoints() {
+            const scale = baseScale * userZoom;
+            
+            ctx.fillStyle = '#44ff44';
+            ctx.strokeStyle = '#00cc00';
+            ctx.lineWidth = 2;
+            
+            chargingPoints.forEach(point => {
+                const x = point.coordinates[0];
+                const y = point.coordinates[1];
+                
+                ctx.beginPath();
+                ctx.arc(
+                    offsetX + x * scale,
+                    offsetY + (roomWidth - y) * scale,
+                    10, 0, Math.PI * 2
+                );
+                ctx.fill();
+                ctx.stroke();
+                
+                // Подпись (только если масштаб достаточный)
+                if (userZoom > 0.3) {
+                    ctx.fillStyle = 'black';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(
+                        `З${point.id}`,
+                        offsetX + x * scale,
+                        offsetY + (roomWidth - y) * scale - 15
+                    );
+                    ctx.fillStyle = '#44ff44';
+                }
+            });
+        }
+
+        // Функции для работы с формами (оставлены для обратной совместимости)
+        function addObstacle() {
+            const obstacle = {
+                id: obstacles.length + 1,
+                coordinates: [[5, 5], [10, 5], [10, 10], [5, 10]],
+                withArea: true
+            };
+            
+            obstacles.push(obstacle);
+            updateObstaclesUI();
+            updateFactoryMap();
+        }
+
+        function addLoadingPoint() {
+            const point = {
+                id: loadingPoints.length + 1,
+                coordinates: [15, 15],
+                totalWeight: '',
+                unitWeight: '',
+                cargoType: ''
+            };
+            
+            loadingPoints.push(point);
+            updateLoadingPointsUI();
+            updateFactoryMap();
+        }
+
+        function addUnloadingPoint() {
+            const point = {
+                id: unloadingPoints.length + 1,
+                coordinates: [25, 15],
+                requirements: [
+                    {
+                        maxCapacity: '',
+                        cargoType: '',
+                        totalWeight: ''
+                    }
+                ]
+            };
+            
+            unloadingPoints.push(point);
+            updateUnloadingPointsUI();
+            updateFactoryMap();
+        }
+
+        function addChargingPoint() {
+            const point = {
+                id: chargingPoints.length + 1,
+                coordinates: [35, 15],
+                chargingPlaces: ''
+            };
+            
+            chargingPoints.push(point);
+            updateChargingPointsUI();
+            updateFactoryMap();
+        }
+
+        // Функция отправки данных на сервер для оптимизации логистики с помощью ИИ
+        async function sendToGigaChat() {
+            // Проверка пустых полей
+            if (!checkEmptyFields()) {
+                alert('❌ Укажите недостающие данные во всех точках погрузки, выгрузки и зарядки');
+                return;
+            }
+            
+            // Проверка соответствия типов грузов
+            const cargoCheck = checkCargoTypes();
+            if (!cargoCheck.valid) {
+                alert(`❌ Ошибка, груз "${cargoCheck.missingCargo}" не поставляется`);
+                return;
+            }
+            
+            // Проверка существования кнопки
+            const submitBtn = document.querySelector('.btn-primary');
+            if (!submitBtn) {
+                alert('❌ Ошибка: кнопка отправки не найдена');
+                return;
+            }
+            
+            // Сбор данных о помещении
+            const roomData = {
+                length: parseFloat(document.getElementById('length').value) || 50,
+                width: parseFloat(document.getElementById('width').value) || 30,
+                height: parseFloat(document.getElementById('height').value) || 10
+            };
+
+            // Сбор дополнительных деталей
+            const additionalDetails = document.getElementById('additionalDetails').value;
+
+            // Формируем полный объект данных
+            const factoryData = {
+                room: roomData,
+                warehouse: warehouseArea,
+                basePoint: basePoint,
+                obstacles: obstacles,
+                loadingPoints: loadingPoints,
+                unloadingPoints: unloadingPoints,
+                chargingPoints: chargingPoints,
+                tunnels: tunnels,
+                robotTypes: robotTypes,
+                additionalDetails: additionalDetails
+            };
+
+            console.log('Данные для отправки:', factoryData);
+            
+            try {
+                // Показываем индикатор загрузки
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '⏳ Отправка на сервер...';
+                submitBtn.disabled = true;
+
+                // Отправка данных на сервер
+                const response = await fetch('http://127.0.0.1:8030/optimize-logistics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(factoryData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Логика движения роботов успешно сгенерирована!\n\nОткрываю страницу с результатом...');
+                    
+                    // Сохраняем результат в localStorage для передачи на страницу результатов
+                    localStorage.setItem('gigaChatResponse', JSON.stringify({
+                        success: true,
+                        controllerCode: result.controllerCode,
+                        fullResponse: result.fullResponse,
+                        requestData: factoryData, // Сохраняем и исходные данные для контекста
+                        timestamp: new Date().toISOString()
+                    }));
+                    
+                    // Открываем страницу с результатами
+                    window.open('giga_response.html', '_blank');
+                    
+                } else {
+                    throw new Error(result.error || 'Неизвестная ошибка сервера');
+                }
+                
+            } catch (error) {
+                console.error('Ошибка при отправке данных:', error);
+                alert('❌ Ошибка при отправке данных на сервер:\n' + error.message);
+                
+                // Сохраняем ошибку для показа на странице результатов
+                localStorage.setItem('gigaChatResponse', JSON.stringify({
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }));
+                
+                // Все равно открываем страницу с результатами (чтобы показать ошибку)
+                window.open('giga_response.html', '_blank');
+            } finally {
+                // Восстанавливаем кнопку
+                const submitBtn = document.querySelector('.btn-primary');
+                if (submitBtn) {
+                    submitBtn.innerHTML = '🤖 Рассчитать оптимальные маршруты';
+                    submitBtn.disabled = false;
+                }
+            }
+        }
+
+        // Функция расчета с помощью алгоритма (оставлена для совместимости, но не используется)
+        function calculateWithAlgorithm() {
+            // Проверка пустых полей
+            if (!checkEmptyFields()) {
+                alert('❌ Укажите недостающие данные во всех точках погрузки, выгрузки и зарядки');
+                return;
+            }
+            
+            // Проверка соответствия типов грузов
+            const cargoCheck = checkCargoTypes();
+            if (!cargoCheck.valid) {
+                alert(`❌ Ошибка, груз "${cargoCheck.missingCargo}" не поставляется`);
+                return;
+            }
+            
+            alert('⚙️ Функция расчета с помощью алгоритма находится в разработке');
+            // Здесь будет реализация алгоритма расчета маршрутов
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
