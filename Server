@@ -1,1 +1,857 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import requests
+import json
+import base64
+import uuid
+import re
 
+app = Flask(__name__)
+CORS(app)
+
+# ============================================================
+# КОНФИГУРАЦИЯ GIGACHAT API
+# ------------------------------------------------------------
+# Для использования GigaChat необходимо:
+# 1. Зарегистрироваться на https://developers.sber.ru/gigachat
+# 2. Создать проект и получить CLIENT_ID и CLIENT_SECRET
+# 3. Вставить учётные данные ниже
+# 4. Установить GIGACHAT_ENABLED = True
+#
+# Если GigaChat отключён (GIGACHAT_ENABLED = False), сервер
+# автоматически возвращает резервный fallback-контроллер.
+# ============================================================
+CLIENT_ID = "YOUR_CLIENT_ID_HERE"
+CLIENT_SECRET = "YOUR_CLIENT_SECRET_HERE"
+GIGACHAT_ENABLED = False  # Флаг для включения/выключения GigaChat
+
+
+def get_token():
+    """
+    Получение токена доступа для GigaChat API через OAuth2.
+
+    Кодирует CLIENT_ID и CLIENT_SECRET в Base64 и отправляет
+    запрос к эндпоинту авторизации Сбера.
+
+    Returns:
+        str | None: access_token при успехе, None при ошибке.
+    """
+    credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+    rq_uid = str(uuid.uuid4())
+
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'RqUID': rq_uid,
+        'Authorization': f'Basic {encoded_credentials}'
+    }
+    data = {'scope': 'GIGACHAT_API_PERS'}
+    url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+
+    try:
+        response = requests.post(url, headers=headers, data=data, verify=False)
+        if response.status_code == 200:
+            return response.json()['access_token']
+        else:
+            print("Ошибка при получении токена:", response.status_code, response.text)
+            return None
+    except Exception as e:
+        print("Исключение при получении токена:", str(e))
+        return None
+
+
+def get_chat_completion(token, user_message):
+    """
+    Отправка запроса к GigaChat API и получение ответа модели.
+
+    Args:
+        token (str): Bearer-токен доступа, полученный через get_token().
+        user_message (str): Текст промпта для генерации кода контроллера.
+
+    Returns:
+        requests.Response | None: Объект ответа при успехе, None при ошибке.
+    """
+    url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+    payload = {
+        "model": "GigaChat",
+        "messages": [{"role": "user", "content": user_message}],
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "n": 1,
+        "stream": False,
+        "max_tokens": 4000,
+        "repetition_penalty": 1
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {token}'
+    }
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload), verify=False, timeout=30)
+        return response
+    except Exception as e:
+        print("Исключение при запросе к GigaChat:", str(e))
+        return None
+
+
+def format_base_point(base_point):
+    """
+    Форматирует базовую точку (начальную позицию роботов) в читаемую строку.
+
+    Args:
+        base_point (dict): Словарь с ключом 'coordinates': [x, y].
+
+    Returns:
+        str: Строка с координатами или сообщение об отсутствии данных.
+    """
+    if not base_point or 'coordinates' not in base_point:
+        return "Не определена"
+
+    coords = base_point['coordinates']
+    return f"Координаты: ({coords[0]:.1f}, {coords[1]:.1f})"
+
+
+def format_warehouse_detailed(warehouse):
+    """
+    Детально форматирует зону склада: количество точек, координаты и центр полигона.
+
+    Args:
+        warehouse (dict): Словарь с ключом 'coordinates': [[x1,y1], [x2,y2], ...].
+
+    Returns:
+        str: Многострочное описание склада или сообщение об ошибке.
+    """
+    if not warehouse or 'coordinates' not in warehouse:
+        return "Склад не определен"
+
+    coords = warehouse['coordinates']
+    points_str = ", ".join([f"({x:.1f}, {y:.1f})" for x, y in coords])
+
+    # Вычисляем геометрический центр полигона склада
+    center_x = sum(x for x, y in coords) / len(coords)
+    center_y = sum(y for x, y in coords) / len(coords)
+
+    return f"Область склада: {len(coords)} точек\nКоординаты: {points_str}\nЦентр: ({center_x:.1f}, {center_y:.1f})"
+
+
+def format_loading_points_detailed(loading_points):
+    """
+    Форматирует список точек погрузки с типом груза и весовыми параметрами.
+
+    Args:
+        loading_points (list): Список словарей с полями id, coordinates, cargoType,
+                               totalWeight, unitWeight.
+
+    Returns:
+        str: Многострочная строка с описанием каждой точки погрузки.
+    """
+    if not loading_points:
+        return "Точки погрузки не определены"
+
+    result = []
+    for point in loading_points:
+        coords = point.get('coordinates', [0, 0])
+        cargo_type = point.get('cargoType', 'не указан')
+        total_weight = point.get('totalWeight', 'не указан')
+        unit_weight = point.get('unitWeight', 'не указан')
+
+        result.append(
+            f"П{point.get('id', '?')}: ({coords[0]:.1f}, {coords[1]:.1f}) | Груз: {cargo_type} | Общий вес: {total_weight} | Вес единицы: {unit_weight}")
+
+    return "\n".join(result)
+
+
+def format_unloading_points_detailed(unloading_points):
+    """
+    Форматирует список точек выгрузки с требованиями по типу и вместимости груза.
+
+    Args:
+        unloading_points (list): Список словарей с полями id, coordinates,
+                                 requirements (список {cargoType, maxCapacity, totalWeight}).
+
+    Returns:
+        str: Многострочная строка с описанием каждой точки выгрузки.
+    """
+    if not unloading_points:
+        return "Точки выгрузки не определены"
+
+    result = []
+    for point in unloading_points:
+        coords = point.get('coordinates', [0, 0])
+        requirements = point.get('requirements', [])
+
+        req_info = []
+        for req in requirements:
+            cargo_type = req.get('cargoType', 'не указан')
+            max_capacity = req.get('maxCapacity', 'не указан')
+            total_weight = req.get('totalWeight', 'не указан')
+            req_info.append(f"{cargo_type} (макс: {max_capacity}, всего: {total_weight})")
+
+        requirements_str = "; ".join(req_info) if req_info else "требования не указаны"
+        result.append(f"В{point.get('id', '?')}: ({coords[0]:.1f}, {coords[1]:.1f}) | Требования: {requirements_str}")
+
+    return "\n".join(result)
+
+
+def format_charging_points_detailed(charging_points):
+    """
+    Форматирует список точек зарядки с количеством доступных зарядных мест.
+
+    Args:
+        charging_points (list): Список словарей с полями id, coordinates, chargingPlaces.
+
+    Returns:
+        str: Многострочная строка с описанием каждой точки зарядки.
+    """
+    if not charging_points:
+        return "Точки зарядки не определены"
+
+    result = []
+    for point in charging_points:
+        coords = point.get('coordinates', [0, 0])
+        charging_places = point.get('chargingPlaces', 'не указано')
+
+        result.append(f"З{point.get('id', '?')}: ({coords[0]:.1f}, {coords[1]:.1f}) | Зарядных мест: {charging_places}")
+
+    return "\n".join(result)
+
+
+def format_obstacles_detailed(obstacles):
+    """
+    Форматирует список препятствий. Различает два типа:
+    - Препятствия с площадью (withArea=True): выводит центр полигона.
+    - Перегородки (withArea=False): выводит первую и последнюю точку линии.
+
+    Args:
+        obstacles (list): Список словарей с полями id, coordinates, withArea.
+
+    Returns:
+        str: Многострочная строка с описанием каждого препятствия.
+    """
+    if not obstacles:
+        return "Препятствия не определены"
+
+    result = []
+    for obstacle in obstacles:
+        obs_type = "Препятствие" if obstacle.get('withArea') else "Перегородка"
+        coords = obstacle.get('coordinates', [])
+
+        if coords:
+            if obstacle.get('withArea'):
+                # Для полигональных препятствий — вычисляем центр
+                center_x = sum(x for x, y in coords) / len(coords)
+                center_y = sum(y for x, y in coords) / len(coords)
+                result.append(
+                    f"{obs_type} {obstacle.get('id', '?')}: {len(coords)} точек, центр ({center_x:.1f}, {center_y:.1f})")
+            else:
+                # Для линейных перегородок — первая и последняя точка
+                first_point = coords[0]
+                last_point = coords[-1]
+                result.append(
+                    f"{obs_type} {obstacle.get('id', '?')}: {len(coords)} точек, от ({first_point[0]:.1f}, {first_point[1]:.1f}) до ({last_point[0]:.1f}, {last_point[1]:.1f})")
+        else:
+            result.append(f"{obs_type} {obstacle.get('id', '?')}: координаты не указаны")
+
+    return "\n".join(result)
+
+
+def format_tunnels_detailed(tunnels):
+    """
+    Форматирует список тоннелей. Тоннели — оптимизированные маршруты между
+    базой/складом и точками погрузки. Показывает направление, материал и крайние точки.
+
+    Args:
+        tunnels (list): Список словарей с полями id, points, materialType,
+                        startsFrom, targetLoadingPoint.
+
+    Returns:
+        str: Многострочная строка с описанием каждого тоннеля.
+    """
+    if not tunnels:
+        return "Тоннели не определены"
+
+    result = []
+    for tunnel in tunnels:
+        points = tunnel.get('points', [])
+        material_type = tunnel.get('materialType', 'не указан')
+        starts_from = tunnel.get('startsFrom', 'неизвестно')
+        target_loading_point = tunnel.get('targetLoadingPoint')
+
+        # Определяем направление тоннеля по точке старта
+        if starts_from == 'warehouse':
+            direction = f"🏬 Склад → 📤 П{target_loading_point}"
+        else:
+            direction = "🏠 База → 🏬 Склад"
+
+        if points:
+            start = points[0]
+            end = points[-1]
+            result.append(
+                f"Т{tunnel.get('id', '?')}: {direction} | Материал: {material_type} | {len(points)} точек, от ({start['x']:.1f}, {start['y']:.1f}) до ({end['x']:.1f}, {end['y']:.1f})")
+        else:
+            result.append(f"Т{tunnel.get('id', '?')}: {direction} | Материал: {material_type} | точек нет")
+
+    return "\n".join(result)
+
+
+def format_robots_detailed(robot_types):
+    """
+    Форматирует парк роботов. Если anyCount=True, количество роботов
+    определяется GigaChat автоматически. Иначе — используется заданное число.
+
+    Args:
+        robot_types (list): Список словарей с полями type, count, anyCount.
+
+    Returns:
+        str: Многострочная строка с описанием каждого типа роботов и суммой.
+    """
+    if not robot_types:
+        return "Роботы не определены"
+
+    result = []
+    total_robots = 0
+
+    for i, robot in enumerate(robot_types):
+        robot_type = robot.get('type', 'любой')
+        count = robot.get('count', 0)
+        any_count = robot.get('anyCount', True)
+
+        if any_count:
+            result.append(f"Робот {i + 1}: Тип '{robot_type}' - количество оптимизируется GigaChat")
+        else:
+            result.append(f"Робот {i + 1}: Тип '{robot_type}' - {count} шт.")
+            total_robots += count
+
+    if total_robots > 0:
+        result.append(f"---\nВсего роботов: {total_robots} шт.")
+
+    return "\n".join(result)
+
+
+def build_logistics_prompt(factory_data):
+    """
+    Строит детальный промпт для GigaChat на основе данных о планировке цеха.
+
+    Промпт включает полную карту предприятия (склад, точки погрузки/выгрузки,
+    зарядки, препятствия, тоннели, парк роботов) и требования к генерируемому
+    JavaScript-классу RobotController.
+
+    Args:
+        factory_data (dict): Полный объект конфигурации цеха из Constructor.
+
+    Returns:
+        str: Готовый промпт для отправки в GigaChat.
+    """
+
+    room = factory_data.get('room', {})
+    warehouse = factory_data.get('warehouse')
+    base_point = factory_data.get('basePoint', {})
+    obstacles = factory_data.get('obstacles', [])
+    loading_points = factory_data.get('loadingPoints', [])
+    unloading_points = factory_data.get('unloadingPoints', [])
+    charging_points = factory_data.get('chargingPoints', [])
+    tunnels = factory_data.get('tunnels', [])
+    robot_types = factory_data.get('robotTypes', [])
+    additional_details = factory_data.get('additionalDetails', '')
+
+    prompt = f"""Ты - система управления логистикой автономных роботов-перевозчиков на производственном цехе.
+
+КОНТЕКСТ:
+Проектируется система непрерывного движения роботов в цехе размером {room.get('length', 50)}x{room.get('width', 30)} метров.
+Производство работает 24/7 без остановки.
+
+ВАЖНЫЕ ТРЕБОВАНИЯ К КОДУ:
+1. Роботы НЕ МОГУТ проходить сквозь препятствия и стены
+2. Роботы НЕ МОГУТ заезжать на территорию склада (кроме точек зарядки на складе)
+3. Каждый робот должен выполнять полный цикл: Зарядка → Погрузка → Доставка → Выгрузка → Возврат на зарядку
+4. Типы грузов должны совпадать между точками погрузки и выгрузки
+5. Скорость роботов: 1 м/с = 0.1 м за цикл (при обновлении каждые 100мс)
+6. Роботы могут использовать тоннели для оптимизации маршрутов
+
+ПОЛНАЯ КАРТА ПРЕДПРИЯТИЯ:
+
+РАЗМЕРЫ ЦЕХА: {room.get('length', 50)}x{room.get('width', 30)}м
+
+БАЗОВАЯ ТОЧКА (начало маршрутов):
+{format_base_point(base_point)}
+
+СКЛАД (область хранения):
+{format_warehouse_detailed(warehouse)}
+
+ТОЧКИ ПОГРУЗКИ (источники грузов):
+{format_loading_points_detailed(loading_points)}
+
+ТОЧКИ ВЫГРУЗКИ (приемники грузов):
+{format_unloading_points_detailed(unloading_points)}
+
+ТОЧКИ ЗАРЯДКИ (энергия для роботов):
+{format_charging_points_detailed(charging_points)}
+
+ПРЕПЯТСТВИЯ (ограничения движения):
+{format_obstacles_detailed(obstacles)}
+
+ТОННЕЛИ (оптимизированные маршруты):
+{format_tunnels_detailed(tunnels)}
+
+ПАРК РОБОТОВ (исполнители):
+{format_robots_detailed(robot_types)}
+
+ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ:
+{additional_details if additional_details else "Стандартные условия работы"}
+
+КОНКРЕТНАЯ ЗАДАЧА:
+Создать алгоритм НЕПРЕРЫВНОГО движения роботов в бесконечном цикле производства.
+
+КОНКРЕТНЫЕ ТРЕБОВАНИЯ К АЛГОРИТМУ:
+1. Роботы начинают из точек зарядки в статусе 'ready'
+2. Бесконечный цикл для каждого робота:
+   - Зарядка (charging) →
+   - Движение к погрузке (moving_to_load) →
+   - Погрузка (loading, 2 секунды) →
+   - Движение к выгрузке (moving_to_unload) →
+   - Выгрузка (unloading, 2 секунды) →
+   - Возврат на зарядку (moving_to_charge)
+3. Учет приоритетов доставки (срочные заказы)
+4. ОБЯЗАТЕЛЬНО обходить препятствия и перегородки
+5. Роботы НЕ МОГУТ проходить через стены, склад или другие препятствия
+6. Балансировка нагрузки между роботами
+7. Учет состояния батареи и автоматическая зарядка при <30%
+8. Минимизация времени простоя
+9. Избегание столкновений между роботами
+10. Учет типа груза - робот берет заказ ТОЛЬКО если тип груза в точке погрузки совпадает с типом в точке выгрузки
+11. Использование тоннелей для оптимизации маршрутов между складом и точками погрузки
+
+СТРУКТУРА ДАННЫХ factoryData (ИСПОЛЬЗУЙ ТОЛЬКО ЭТИ ИМЕНА):
+- room: {{length, width, height}}
+- basePoint: {{coordinates: [x, y]}}
+- warehouse: {{coordinates: [[x1,y1], [x2,y2], ...]}} (многоугольник)
+- obstacles: массив с {{id, coordinates: [[x1,y1], [x2,y2], ...], withArea: boolean}}
+- loadingPoints: массив с {{id, coordinates: [x,y], cargoType, totalWeight, unitWeight}}
+- unloadingPoints: массив с {{id, coordinates: [x,y], requirements: [{{cargoType, maxCapacity, totalWeight}}]}}
+- chargingPoints: массив с {{id, coordinates: [x,y], chargingPlaces}}
+- tunnels: массив с {{id, points: [{{x, y}}], materialType, startsFrom, targetLoadingPoint, endsAt}}
+- robotTypes: массив с {{type, count, anyCount}}
+
+ФОРМАТ ОТВЕТА - JavaScript класс для управления роботами:
+```javascript
+class RobotController {{
+    constructor(factoryData) {{
+        this.data = factoryData;
+        this.robots = [];
+        this.orders = [];
+        this.cycleCount = 0;
+        this.setupRobots();
+        this.generateInitialOrders();
+    }}
+
+    setupRobots() {{
+        // Инициализация роботов с начальными позициями в точках зарядки
+        // КАЖДЫЙ робот должен иметь:
+        // - id: уникальный идентификатор
+        // - type: тип робота
+        // - position: [x, y] - начальная позиция (из chargingPoints)
+        // - battery: 100 - начальный заряд
+        // - status: 'ready' - начальный статус
+        // - currentOrder: null - текущее задание
+        // - targetPosition: null - целевая позиция
+        // - path: [] - путь для обхода препятствий
+        // - currentTunnel: null - текущий используемый тоннель
+    }}
+
+    generateInitialOrders() {{
+        // Создание начальных заданий для роботов
+        // КАЖДОЕ задание должно:
+        // - Создаваться ТОЛЬКО между точками погрузки и выгрузки с ОДИНАКОВЫМ cargoType
+        // - Иметь source (точка погрузки) и destination (точка выгрузки)
+        // - Иметь status: 'pending'
+        // - Учитывать weight requirements
+        // УЧТИТЕ ТИПЫ ГРУЗОВ, ВЕСА И ПРИОРИТЕТЫ
+    }}
+
+    update() {{
+        // Основной метод обновления состояния всех роботов
+        // Вызывается в игровом цикле (каждые 100мс)
+        this.cycleCount++;
+
+        // 1. Обновление позиций роботов
+        this.updateRobotPositions();
+
+        // 2. Проверка выполнения заданий
+        this.checkOrderCompletion();
+
+        // 3. Назначение новых заданий
+        this.assignNewOrders();
+
+        // 4. Проверка состояния батареи и зарядка
+        this.handleBatteryManagement();
+
+        // 5. Предотвращение столкновений
+        this.collisionAvoidance();
+
+        return this.getRobotStates();
+    }}
+
+    updateRobotPositions() {{
+        // Логика перемещения каждого робота к целевой точке
+        // УЧТИТЕ ПРЕПЯТСТВИЯ - роботы не могут проходить сквозь них
+        // Используй скорость 0.1 за цикл (1 м/с при 100мс обновлении)
+        // При достижении цели меняй статус робота
+        // УЧТИ ВОЗМОЖНОСТЬ ИСПОЛЬЗОВАНИЯ ТОННЕЛЕЙ
+    }}
+
+    checkOrderCompletion() {{
+        // Проверка достижения роботами целей
+        // При достижении точки погрузки: статус -> 'loading', ждать 2 секунды
+        // При достижении точки выгрузки: статус -> 'unloading', ждать 2 секунды
+        // После выгрузки: освободить робота, отправить на зарядку
+    }}
+
+    assignNewOrders() {{
+        // Алгоритм распределения новых заданий
+        // Назначать роботам задания ТОЛЬКО с совпадающими типами грузов
+        // Балансировать нагрузку между роботами
+        // Учитывать приоритеты заказов
+        // Учитывать наличие тоннелей для оптимизации маршрутов
+    }}
+
+    handleBatteryManagement() {{
+        // Автоматическая отправка на зарядку при низком уровне батареи
+        // При battery < 30%: прервать текущее задание, ехать к ближайшей chargingPoint
+        // При достижении chargingPoint: статус -> 'charging', восстанавливать батарею
+    }}
+
+    collisionAvoidance() {{
+        // Алгоритм предотвращения столкновений между роботами
+        // УЧТИТЕ РАЗМЕРЫ ЦЕХА И РАСПОЛОЖЕНИЕ ПРЕПЯТСТВИЙ
+        // Роботы не должны сталкиваться друг с другом
+    }}
+
+    findOptimalPath(start, end, robot) {{
+        // Алгоритм поиска оптимального пути с учетом препятствий и тоннелей
+        // Возвращает массив точек пути
+        // УЧТИ ПРЕПЯТСТВИЯ И ВОЗМОЖНОСТЬ ИСПОЛЬЗОВАНИЯ ТОННЕЛЕЙ
+    }}
+
+    getRobotStates() {{
+        // Возвращает текущее состояние всех роботов для визуализации
+        return {{
+            robots: this.robots.map(robot => ({{
+                id: robot.id,
+                type: robot.type,
+                position: robot.position,
+                battery: robot.battery,
+                status: robot.status,
+                currentOrder: robot.currentOrder,
+                targetPosition: robot.targetPosition,
+                currentTunnel: robot.currentTunnel
+            }})),
+            cycle: this.cycleCount,
+            timestamp: Date.now()
+        }};
+    }}
+
+    // Дополнительные методы по необходимости
+}}
+    ВАЖНО: НЕ ВКЛЮЧАЙ код использования в ответ! Только класс RobotController!"""
+    return prompt
+
+
+def extract_js_code(response_text):
+    """
+    Извлекает JavaScript-код из ответа GigaChat, удаляя markdown-обёртку.
+
+    Последовательно пробует паттерны ```javascript, ```js, ``` и
+    возвращает «сырой» текст, если ни один не сработал.
+
+    Args:
+        response_text (str): Полный текстовый ответ от GigaChat.
+
+    Returns:
+        str: Чистый JavaScript-код без markdown-разметки.
+    """
+    patterns = [
+            r'```javascript\s*(.*?)\s*```',
+            r'```js\s*(.*?)\s*```',
+            r'```\s*(.*?)\s*```',
+             ]
+
+    for pattern in patterns:
+            match = re.search(pattern, response_text, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+
+    return response_text.strip()
+
+
+def get_fallback_controller_code():
+    """
+    Возвращает базовый JavaScript-контроллер роботов для работы без GigaChat.
+
+    Используется когда GIGACHAT_ENABLED = False или при ошибке подключения.
+    Контроллер инициализирует роботов из точек зарядки и циклически
+    переключает их статусы как заглушку — без реального движения.
+
+    Returns:
+        str: JavaScript-код класса RobotController (fallback-версия).
+    """
+    return """
+class RobotController {
+    constructor(factoryData) {
+        this.data = factoryData;
+        this.robots = [];
+        this.orders = [];
+        this.cycleCount = 0;
+        this.setupRobots();
+        this.generateInitialOrders();
+    }
+
+    setupRobots() {
+        // Базовая инициализация роботов для резервного контроллера
+        if (this.data.chargingPoints && this.data.chargingPoints.length > 0) {
+            let robotIdCounter = 1;
+            // Перебираем заданные типы роботов
+            for (const robotType of this.data.robotTypes || []) {
+                // Если anyCount=true — GigaChat должен оптимизировать кол-во,
+                // в fallback-режиме создаём по 1 роботу каждого типа
+                const count = robotType.anyCount ? 1 : (robotType.count || 0);
+                for (let i = 0; i < count; i++) {
+                    const chargingPoint = this.data.chargingPoints[0]; // Простейшее распределение: все на первую точку
+                    this.robots.push({
+                        id: robotIdCounter++,
+                        type: robotType.type,
+                        position: [...chargingPoint.coordinates],
+                        battery: 100,
+                        status: 'ready',
+                        currentOrder: null,
+                        targetPosition: null,
+                        path: [],
+                        currentTunnel: null
+                    });
+                }
+            }
+            // Если типы роботов не заданы — создаём одного дефолтного
+            if (this.robots.length === 0 && this.data.chargingPoints.length > 0) {
+                const chargingPoint = this.data.chargingPoints[0];
+                this.robots.push({
+                    id: robotIdCounter++,
+                    type: 'DefaultRobot',
+                    position: [...chargingPoint.coordinates],
+                    battery: 100,
+                    status: 'ready',
+                    currentOrder: null,
+                    targetPosition: null,
+                    path: [],
+                    currentTunnel: null
+                });
+            }
+        }
+        console.log(`[Fallback] Initialized ${this.robots.length} robots.`);
+    }
+
+    generateInitialOrders() {
+        // Заглушка — реальная генерация заказов выполняется GigaChat-контроллером
+        console.log("[Fallback] Generating initial orders (stub).");
+    }
+
+    update() {
+        this.cycleCount++;
+        // Простой цикл статусов для визуализации работы в fallback-режиме
+        for (const robot of this.robots) {
+            if (robot.status === 'ready') {
+                robot.status = 'moving_to_load_stub';
+            } else if (robot.status === 'moving_to_load_stub') {
+                robot.status = 'loading_stub';
+            } else if (robot.status === 'loading_stub') {
+                robot.status = 'moving_to_unload_stub';
+            } else if (robot.status === 'moving_to_unload_stub') {
+                robot.status = 'unloading_stub';
+            } else if (robot.status === 'unloading_stub') {
+                robot.status = 'moving_to_charge_stub';
+            } else if (robot.status === 'moving_to_charge_stub') {
+                robot.status = 'charging_stub';
+            } else if (robot.status === 'charging_stub') {
+                // Быстрая «зарядка» в fallback — сразу 100%
+                robot.battery = 100;
+                robot.status = 'ready';
+            }
+        }
+        return this.getRobotStates();
+    }
+
+    // Заглушки основных методов контроллера
+    updateRobotPositions() { /* stub */ }
+    checkOrderCompletion() { /* stub */ }
+    assignNewOrders() { /* stub */ }
+    handleBatteryManagement() { /* stub */ }
+    collisionAvoidance() { /* stub */ }
+    findOptimalPath(start, end, robot) { return []; /* stub */ }
+
+    getRobotStates() {
+        return {
+            robots: this.robots.map(robot => ({
+                id: robot.id,
+                type: robot.type,
+                position: robot.position,
+                battery: robot.battery,
+                status: robot.status,
+                currentOrder: robot.currentOrder,
+                targetPosition: robot.targetPosition,
+                currentTunnel: robot.currentTunnel
+            })),
+            cycle: this.cycleCount,
+            timestamp: Date.now()
+        };
+    }
+}"""
+
+
+@app.route('/optimize-logistics', methods=['POST', 'OPTIONS'])
+def optimize_logistics():
+    """
+    POST /optimize-logistics
+
+    Основной эндпоинт: принимает JSON с описанием планировки цеха
+    и возвращает сгенерированный GigaChat JavaScript-класс RobotController.
+
+    Если GIGACHAT_ENABLED = False — сразу возвращает fallback-контроллер.
+
+    Request body (JSON):
+        Объект factoryData с полями room, warehouse, obstacles, loadingPoints,
+        unloadingPoints, chargingPoints, tunnels, robotTypes, additionalDetails.
+
+    Returns:
+        JSON: {success, controllerCode, fullResponse, message} при успехе
+              {success, error} при ошибке
+    """
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+    try:
+        data = request.get_json()
+        print("Получены данные для оптимизации логистики")
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "No data provided"
+            }), 400
+
+        # Если GigaChat отключён — возвращаем резервный контроллер без обращения к API
+        if not GIGACHAT_ENABLED:
+            print("🔴 GigaChat отключен, возвращаем резервный контроллер")
+            return jsonify({
+                "success": True,
+                "controllerCode": get_fallback_controller_code(),
+                "fullResponse": "GIGACHAT_OFFLINE: Используется резервный контроллер",
+                "message": "GigaChat временно отключен, используется базовая логика"
+            })
+
+        # Получаем OAuth-токен и формируем запрос к GigaChat
+        token = get_token()
+        if not token:
+            return jsonify({
+                "success": False,
+                "error": "Не удалось получить токен аутентификации от GigaChat"
+            }), 500
+
+        # Строим промпт из данных цеха и отправляем в GigaChat
+        prompt = build_logistics_prompt(data)
+        print("Сгенерирован промпт для GigaChat")
+
+        response = get_chat_completion(token, prompt)
+
+        if not response:
+            return jsonify({
+                "success": False,
+                "error": "Таймаут или ошибка соединения с GigaChat"
+            }), 500
+
+        if response.status_code != 200:
+            print(f"Ошибка GigaChat: {response.status_code} - {response.text}")
+            return jsonify({
+                "success": False,
+                "error": f"Ошибка запроса к GigaChat: {response.status_code}",
+                "details": response.text
+            }), 500
+
+        # Извлекаем JS-код из markdown-ответа GigaChat
+        result = response.json()
+        giga_response = result['choices'][0]['message']['content']
+        js_code = extract_js_code(giga_response)
+
+        print("Успешно получен ответ от GigaChat")
+
+        return jsonify({
+            "success": True,
+            "controllerCode": js_code,
+            "fullResponse": giga_response,
+            "message": "Логика движения роботов сгенерирована успешно"
+        })
+
+    except Exception as e:
+        print(f"Ошибка сервера: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+        return jsonify({
+            "success": False,
+            "error": f"Внутренняя ошибка сервера: {str(e)}"
+        }), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    GET /health
+
+    Проверка работоспособности сервера. Возвращает текущий статус
+    и флаг включения GigaChat.
+
+    Returns:
+        JSON: {status, message, service, gigachat_enabled}
+    """
+    return jsonify({
+        "status": "ok",
+        "message": "Сервер управления логистикой роботов работает",
+        "service": "Robot Logistics Controller API",
+        "gigachat_enabled": GIGACHAT_ENABLED
+    })
+
+@app.route('/test-connection', methods=['GET'])
+def test_connection():
+    """
+    GET /test-connection
+
+    Тестовый эндпоинт: проверяет возможность получения OAuth-токена от GigaChat.
+    Используется для диагностики подключения без генерации кода.
+
+    Returns:
+        JSON: {success, message}
+    """
+    try:
+        token = get_token()
+        if token:
+            return jsonify({
+                "success": True,
+                "message": "Подключение к GigaChat работает"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Не удалось подключиться к GigaChat"
+            })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Ошибка подключения: {str(e)}"
+        })
+
+if __name__ == '__main__':
+    print("Запуск сервера управления логистикой роботов...")
+    print("Эндпоинты:")
+    print(" POST /optimize-logistics - генерация логики движения роботов")
+    print(" GET /health - проверка работоспособности")
+    print(" GET /test-connection - проверка подключения к GigaChat")
+    print(f" GigaChat статус: {'ВКЛЮЧЕН' if GIGACHAT_ENABLED else 'ОТКЛЮЧЕН'}")
+    app.run(host='0.0.0.0', port=8030, debug=True)
